@@ -4,7 +4,7 @@
 
 School messaging for students, teachers and staff at Universidad de Dagupan.
 
-## Full description (1,614 / 4,000 characters)
+## Full description (1,937 / 4,000 characters)
 
 Uhoo! is the official messaging app of Universidad de Dagupan. It keeps
 conversations between students, teachers and school staff in one place, separate
@@ -21,8 +21,13 @@ WHAT YOU CAN DO
   organisation.
 • Share files and photos — send handouts, forms, images and documents, and open
   them straight from the conversation.
-• Know when messages arrive — read receipts show what has been seen, and unread
-  counts show what still needs attention.
+• Send voice messages — record and play them right in the chat.
+• Class chats — teachers start a group for any STEP class, and students join
+  automatically.
+• Polls and events — ask the group a question or plan an activity with RSVPs.
+• Save what matters — keep important messages and jump back to them.
+• Know when messages arrive — see who has read your message, and unread counts
+  show what still needs attention.
 • Get notified — push notifications reach you when someone messages you, even
   when the app is closed.
 • Mute what can wait — silence a busy group without leaving it.

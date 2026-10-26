@@ -5,7 +5,7 @@
 Sign in with your STEP account and message anyone in your school. Class groups,
 shared files and instant notifications, all in one place built for campus life.
 
-## Description (1,632 / 4,000 characters)
+## Description (1,724 / 4,000 characters)
 
 Uhoo! is the official messaging app of Universidad de Dagupan. It gives the whole
 school one place to talk, separate from the personal chat apps where class
@@ -17,15 +17,16 @@ and everyone inside is a verified member of the school community.
 ONE APP FOR CAMPUS CONVERSATIONS
 
 Ask a classmate what you missed. Message a teacher about a deadline without asking
-around for a number first. Bring an entire section together in a group chat named
-after the class, or keep a project team, an office or a student organisation in
-their own space.
+around for a number first. Teachers can start a chat for any of their STEP classes,
+and students join it automatically. Keep a project team, an office or a student
+organisation in their own space, and use polls and events to decide and plan
+together.
 
-Send handouts, forms, photos and documents straight into the conversation, and
-open them again later without digging through your files.
+Send handouts, forms, photos, documents and voice messages straight into the
+conversation. Save the messages that matter and jump back to them anytime.
 
-Read receipts tell you a message landed. Unread counts show what still needs your
-attention. Notifications reach you even when the app is closed, and a busy group
+Message info shows who has read your message. Unread counts show what still needs
+your attention. Notifications reach you even when the app is closed, and a busy group
 can be muted without leaving it.
 
 KNOW WHO YOU ARE TALKING TO

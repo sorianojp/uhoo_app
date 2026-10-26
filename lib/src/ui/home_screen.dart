@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../data/models.dart';
 import '../data/session.dart';
 import '../theme.dart';
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _debounce;
   StreamSubscription<Json>? _events;
   SessionController get session => widget.session;
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
   void initState() {
@@ -587,20 +589,31 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () => openSupportPage(context),
       ),
       const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.info_outline),
-        title: const Text('About Uhoo!'),
-        subtitle: const Text('Version 1.0.0'),
-        onTap: () => showAboutDialog(
-          context: context,
-          applicationName: 'Uhoo!',
-          applicationVersion: '1.0.0',
-          applicationIcon: const Icon(Icons.school_rounded, size: 40),
-          children: [
-            const Text('A place for your school community to stay connected.'),
-          ],
-        ),
+      // The version comes from the app bundle (pubspec.yaml's `version`).
+      FutureBuilder<PackageInfo>(
+        future: _packageInfo,
+        builder: (context, snapshot) {
+          final version = snapshot.data == null
+              ? ''
+              : '${snapshot.data!.version} (${snapshot.data!.buildNumber})';
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About Uhoo!'),
+            subtitle: Text(version.isEmpty ? 'Uhoo!' : 'Version $version'),
+            onTap: () => showAboutDialog(
+              context: context,
+              applicationName: 'Uhoo!',
+              applicationVersion: version,
+              applicationIcon: const Icon(Icons.school_rounded, size: 40),
+              children: [
+                const Text(
+                  'A place for your school community to stay connected.',
+                ),
+              ],
+            ),
+          );
+        },
       ),
       const SizedBox(height: 24),
       OutlinedButton.icon(
