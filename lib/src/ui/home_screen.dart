@@ -150,13 +150,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _open(Conversation conversation) async {
+  Future<void> _open(Conversation conversation, {int? messageId}) async {
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
         settings: RouteSettings(name: '/conversations/${conversation.id}'),
-        builder: (_) =>
-            ChatScreen(session: session, conversation: conversation),
+        builder: (_) => ChatScreen(
+          session: session,
+          conversation: conversation,
+          initialMessageId: messageId,
+        ),
       ),
     );
     if (mounted) await _load(reset: true);
@@ -167,12 +170,17 @@ class _HomeScreenState extends State<HomeScreen> {
     MaterialPageRoute<void>(
       builder: (_) => SavedScreen(
         session: session,
-        onOpen: (id) async {
+        onOpen: (id, messageId) async {
           final data = await session.api.request(
             'GET',
             '${session.teamPath}/conversations/$id',
           );
-          if (mounted) await _open(Conversation(data['data'] as Json));
+          if (mounted) {
+            await _open(
+              Conversation(data['data'] as Json),
+              messageId: messageId,
+            );
+          }
         },
       ),
     ),

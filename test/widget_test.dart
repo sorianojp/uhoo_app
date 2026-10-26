@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:step_messenger/src/app.dart';
 import 'package:step_messenger/src/ui/contacts_screen.dart';
+import 'package:step_messenger/src/ui/chat_screen.dart';
 import 'package:step_messenger/src/ui/conversation_details.dart';
 import 'package:step_messenger/src/ui/saved_screen.dart';
 import 'package:step_messenger/src/data/api.dart';
@@ -626,7 +627,10 @@ void main() {
     int? opened;
     await tester.pumpWidget(
       MaterialApp(
-        home: SavedScreen(session: session, onOpen: (id) async => opened = id),
+        home: SavedScreen(
+          session: session,
+          onOpen: (id, messageId) async => opened = id,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -634,6 +638,50 @@ void main() {
     await tester.tap(find.text('Bring lab gowns'));
     await tester.pumpAndSettle();
     expect(opened, 9);
+    await tester.pumpWidget(const SizedBox());
+    session.dispose();
+  });
+
+  testWidgets('opening at a saved message loads older history and shows it', (
+    tester,
+  ) async {
+    final requests = <String>[];
+    final client = ApiClient(
+      baseUrl: 'https://school.test',
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('/messages')) {
+          requests.add(request.url.query);
+          final older = request.url.queryParameters.containsKey('before_id');
+          final items = older
+              ? [for (var id = 20; id >= 1; id--) message(id, 'Old note $id')]
+              : [for (var id = 60; id >= 21; id--) message(id, 'Recent $id')];
+          return http.Response(
+            jsonEncode({
+              'data': items,
+              'current_page': 1,
+              'next_page_url': older ? null : 'https://school.test/next',
+            }),
+            200,
+          );
+        }
+        return http.Response('{"data":{}}', 200);
+      }),
+    );
+    final session = TestSession(client);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatScreen(
+          session: session,
+          conversation: Conversation(conversation()),
+          initialMessageId: 3,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests.any((q) => q.contains('before_id=21')), isTrue);
+    expect(find.text('Old note 3').hitTestable(), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     session.dispose();
   });

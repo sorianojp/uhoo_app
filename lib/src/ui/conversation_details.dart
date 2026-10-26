@@ -357,6 +357,8 @@ class _ConversationDetailsState extends State<ConversationDetails> {
             for (final message in _pinned)
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                // Back to the chat, scrolled to this message (as on the web).
+                onTap: () => Navigator.pop(context, message.id),
                 leading: const Icon(Icons.push_pin_outlined, size: 18),
                 title: Text(
                   message.preview,

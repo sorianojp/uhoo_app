@@ -10,7 +10,7 @@ import 'widgets.dart';
 class SavedScreen extends StatefulWidget {
   const SavedScreen({super.key, required this.session, required this.onOpen});
   final SessionController session;
-  final Future<void> Function(int conversationId) onOpen;
+  final Future<void> Function(int conversationId, int messageId) onOpen;
 
   @override
   State<SavedScreen> createState() => _SavedScreenState();
@@ -58,7 +58,10 @@ class _SavedScreenState extends State<SavedScreen> {
     if (_opening) return;
     setState(() => _opening = true);
     try {
-      await widget.onOpen((item['conversation'] as Map)['id'] as int);
+      await widget.onOpen(
+        (item['conversation'] as Map)['id'] as int,
+        (item['message'] as Map)['id'] as int,
+      );
       // Unsaved or left chats drop out of the list.
       if (mounted) await _load();
     } catch (e) {

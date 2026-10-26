@@ -25,9 +25,13 @@ class ChatScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.conversation,
+    this.initialMessageId,
   });
   final SessionController session;
   final Conversation conversation;
+
+  /// Opens the chat scrolled to this message (from Saved messages).
+  final int? initialMessageId;
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -52,6 +56,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _recordingVoice = false;
   List<MentionOption> _mentionOptions = [];
   final Set<int> _deliveredIds = {};
+
+  /// Keys for scrolling to a message; see [_jumpTo].
+  final Map<int, GlobalKey> _messageKeys = {};
+  int? _highlightedId;
+  Timer? _highlightTimer;
   Object? _error;
   Timer? _poll;
   DateTime _lastRefresh = DateTime.now();
@@ -70,7 +79,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _body.text = session.drafts[_conversation.id] ?? '';
-    _load();
+    _scroll.addListener(_loadOlderNearTop);
+    _load().then((_) {
+      final id = widget.initialMessageId;
+      if (id != null && mounted) _jumpTo(id);
+    });
     session.realtime?.subscribe('private-conversations.${_conversation.id}');
     session.realtime?.subscribe('presence-conversations.${_conversation.id}');
     _events = session.realtime?.events.listen((event) {
@@ -236,7 +249,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final result = await session.api.request(
         'GET',
-        '$_path/messages?page=${more ? _next : 1}&search=${Uri.encodeQueryComponent(query)}',
+        // Older pages use the id cursor (like the web), so messages arriving
+        // meanwhile cannot shift the page boundaries.
+        '$_path/messages?${more && _messages.isNotEmpty ? 'before_id=${_messages.last.id}' : 'page=1'}&search=${Uri.encodeQueryComponent(query)}',
       );
       final page = PageData.from(result, ChatMessage.new);
       if (!mounted || generation != _generation) return;
@@ -274,6 +289,74 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (mounted && generation == _generation) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  /// Loads older history as the reader nears the top, like the web timeline.
+  void _loadOlderNearTop() {
+    if (!_scroll.hasClients || _next == null || _moreLoading || _loading) {
+      return;
+    }
+    final position = _scroll.position;
+    // The list is reversed: older messages sit at the far end.
+    if (position.pixels >= position.maxScrollExtent - 400) _load(more: true);
+  }
+
+  /// Scrolls to [messageId], loading older history until it is in the list,
+  /// and highlights it. Mirrors openPinnedMessage() in the web app.
+  Future<void> _jumpTo(int messageId) async {
+    if (_searching) {
+      setState(() {
+        _searching = false;
+        _search.clear();
+      });
+      await _load(reset: true);
+    }
+    for (
+      var pages = 0;
+      pages < 25 &&
+          mounted &&
+          _next != null &&
+          !_messages.any((m) => m.id == messageId);
+      pages++
+    ) {
+      await _load(more: true);
+    }
+    if (!mounted) return;
+    if (!_messages.any((m) => m.id == messageId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('That message is no longer available.')),
+      );
+      return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    // The list builds lazily, so step towards older messages until the
+    // target has been built, then centre it.
+    for (var step = 0; step < 200 && mounted; step++) {
+      final target = _messageKeys[messageId]?.currentContext;
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          alignment: .5,
+          duration: const Duration(milliseconds: 300),
+        );
+        _highlightTimer?.cancel();
+        setState(() => _highlightedId = messageId);
+        _highlightTimer = Timer(const Duration(milliseconds: 1800), () {
+          if (mounted) setState(() => _highlightedId = null);
+        });
+        return;
+      }
+      if (!_scroll.hasClients) return;
+      final position = _scroll.position;
+      if (position.pixels >= position.maxScrollExtent) return;
+      _scroll.jumpTo(
+        (position.pixels + position.viewportDimension * .8).clamp(
+          0,
+          position.maxScrollExtent,
+        ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
     }
   }
 
@@ -687,9 +770,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _details() async {
     _stopTyping();
-    await Navigator.push(
+    // Details pops with a pinned message id when one is tapped.
+    final jumpTo = await Navigator.push<int>(
       context,
-      MaterialPageRoute<void>(
+      MaterialPageRoute<int>(
         builder: (_) =>
             ConversationDetails(session: session, conversation: _conversation),
       ),
@@ -701,6 +785,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         setState(() => _conversation = Conversation(data['data'] as Json));
       }
       await _load();
+      if (jumpTo != null && mounted) await _jumpTo(jumpTo);
     } on ApiException catch (e) {
       if (mounted && [403, 404].contains(e.status)) {
         Navigator.pop(context);
@@ -839,7 +924,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           child: Column(
             children: [
               if (pinned != null && !_searching)
-                _PinnedBanner(message: pinned, onTap: _details),
+                _PinnedBanner(
+                  message: pinned,
+                  onTap: () => _jumpTo(pinned.id),
+                  onUnpin: _conversation.can('can_pin_messages')
+                      ? () => _mutate(
+                          'PATCH',
+                          '$_path/messages/${pinned.id}/pin',
+                          {'pinned': false},
+                        )
+                      : null,
+                ),
               if (_searching)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -930,48 +1025,57 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               day != null &&
                               (older == null ||
                                   !DateUtils.isSameDay(day, older.created));
-                          return Column(
-                            key: ValueKey(message.id),
-                            children: [
-                              if (showDay)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  child: Text(
-                                    DateUtils.isSameDay(day, DateTime.now())
-                                        ? 'Today'
-                                        : DateFormat.yMMMd().format(day),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.onSurfaceVariant,
+                          return AnimatedContainer(
+                            key: _messageKeys.putIfAbsent(
+                              message.id,
+                              GlobalKey.new,
+                            ),
+                            duration: const Duration(milliseconds: 300),
+                            color: _highlightedId == message.id
+                                ? brandText(context).withValues(alpha: .1)
+                                : Colors.transparent,
+                            child: Column(
+                              children: [
+                                if (showDay)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    child: Text(
+                                      DateUtils.isSameDay(day, DateTime.now())
+                                          ? 'Today'
+                                          : DateFormat.yMMMd().format(day),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: colors.onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
+                                MessageBubble(
+                                  session: session,
+                                  conversationPath: _path,
+                                  message: message,
+                                  mine: message.sender?.id == session.user!.id,
+                                  group: _conversation.group,
+                                  senderName: names[message.sender?.id],
+                                  status: statuses[message.id],
+                                  onAction: () => _actions(message),
+                                  onAttachment: (a) => _attachment(message, a),
+                                  onReact: (emoji) => _react(message, emoji),
+                                  onVote: (ids) => _mutate(
+                                    'PATCH',
+                                    '$_path/messages/${message.id}/poll-vote',
+                                    {'option_ids': ids},
+                                  ),
+                                  onRsvp: (status) => _mutate(
+                                    'PATCH',
+                                    '$_path/messages/${message.id}/rsvp',
+                                    {'status': status},
+                                  ),
                                 ),
-                              MessageBubble(
-                                session: session,
-                                conversationPath: _path,
-                                message: message,
-                                mine: message.sender?.id == session.user!.id,
-                                group: _conversation.group,
-                                senderName: names[message.sender?.id],
-                                status: statuses[message.id],
-                                onAction: () => _actions(message),
-                                onAttachment: (a) => _attachment(message, a),
-                                onReact: (emoji) => _react(message, emoji),
-                                onVote: (ids) => _mutate(
-                                  'PATCH',
-                                  '$_path/messages/${message.id}/poll-vote',
-                                  {'option_ids': ids},
-                                ),
-                                onRsvp: (status) => _mutate(
-                                  'PATCH',
-                                  '$_path/messages/${message.id}/rsvp',
-                                  {'status': status},
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -1211,6 +1315,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     session.realtime?.unsubscribe('presence-conversations.${_conversation.id}');
     _body.dispose();
     _search.dispose();
+    _highlightTimer?.cancel();
     _scroll.dispose();
     _poll?.cancel();
     _debounce?.cancel();
@@ -1227,9 +1332,16 @@ class _PendingFile {
 
 /// The pinned message strip under the chat header, as on the web.
 class _PinnedBanner extends StatelessWidget {
-  const _PinnedBanner({required this.message, required this.onTap});
+  const _PinnedBanner({
+    required this.message,
+    required this.onTap,
+    this.onUnpin,
+  });
   final ChatMessage message;
   final VoidCallback onTap;
+
+  /// Shown to people who can pin, like the web banner's Unpin button.
+  final VoidCallback? onUnpin;
 
   @override
   Widget build(BuildContext context) {
@@ -1302,6 +1414,16 @@ class _PinnedBanner extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onUnpin != null)
+                    IconButton(
+                      tooltip: 'Unpin message',
+                      onPressed: onUnpin,
+                      icon: Icon(
+                        Icons.close,
+                        size: 18,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
                 ],
               ),
             ),
