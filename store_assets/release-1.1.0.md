@@ -1,4 +1,4 @@
-# Release 1.1.0 (build 4)
+# Release 1.1.0 (build 5)
 
 The first update since launch. Brings the app level with the web app at
 https://uhoo.udd.edu.ph.
