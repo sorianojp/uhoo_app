@@ -107,7 +107,6 @@ class PersonAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               color: brand ? colors.primary : colors.surfaceContainerHigh,
               shape: BoxShape.circle,
-              border: brand ? null : Border.all(color: colors.outlineVariant),
             ),
             alignment: Alignment.center,
             child: group

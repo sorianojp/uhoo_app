@@ -1356,7 +1356,6 @@ class _PinnedBanner extends StatelessWidget {
           color: brand.withValues(alpha: .1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-            side: BorderSide(color: brand.withValues(alpha: .2)),
           ),
           child: InkWell(
             onTap: onTap,

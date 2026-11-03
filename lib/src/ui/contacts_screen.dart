@@ -460,10 +460,7 @@ class _ContactSelectionMark extends StatelessWidget {
       height: 24,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? colors.primary : Colors.transparent,
-        border: Border.all(
-          color: selected ? colors.primary : colors.outlineVariant,
-        ),
+        color: selected ? colors.primary : colors.surfaceContainerHigh,
       ),
       child: selected
           ? Icon(Icons.check_rounded, size: 16, color: colors.onPrimary)

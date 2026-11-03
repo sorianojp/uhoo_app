@@ -768,8 +768,6 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Material(
               color: colors.surfaceContainerLow,
-              elevation: 1,
-              shadowColor: const Color(0x1a000000),
               borderRadius: BorderRadius.circular(20),
               clipBehavior: Clip.antiAlias,
               child: switch (_tab) {
@@ -827,7 +825,6 @@ class _HomeNavigationBar extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Material(
       color: colors.surfaceContainerLow,
-      shape: Border(top: BorderSide(color: colors.outlineVariant)),
       child: SafeArea(
         top: false,
         child: Center(
@@ -1075,9 +1072,6 @@ class _CountBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: muted ? colors.surfaceContainerHigh : colors.primary,
           borderRadius: BorderRadius.circular(10),
-          border: muted
-              ? Border.all(color: colors.onSurface.withValues(alpha: .15))
-              : null,
         ),
         child: Text(
           label,

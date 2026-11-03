@@ -136,10 +136,6 @@ class MessageBubble extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: surface,
-                          boxShadow: stepShadowSmall,
-                          border: mine && _interactive && !message.unsent
-                              ? Border.all(color: brand.withValues(alpha: .25))
-                              : null,
                           borderRadius: BorderRadius.only(
                             topLeft: round,
                             topRight: round,
@@ -387,11 +383,8 @@ class MessageBubble extends StatelessWidget {
     final shell = BoxDecoration(
       color: outgoing
           ? ink.withValues(alpha: .1)
-          : colors.surfaceContainerHigh.withValues(alpha: .4),
+          : colors.surfaceContainerHigh.withValues(alpha: .6),
       borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-      border: Border.all(
-        color: outgoing ? ink.withValues(alpha: .25) : colors.outlineVariant,
-      ),
     );
     if (isAudioAttachment(attachment, voice: message.voice)) {
       return Container(
@@ -713,12 +706,9 @@ class _PollOption extends StatelessWidget {
       selected: voted,
       child: Material(
         color: voted
-            ? brand.withValues(alpha: .1)
-            : colors.surfaceContainerLow.withValues(alpha: .7),
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: voted ? brand : colors.outlineVariant),
-        ),
+            ? brand.withValues(alpha: .15)
+            : colors.surfaceContainerHigh.withValues(alpha: .6),
+        shape: RoundedRectangleBorder(borderRadius: radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -788,10 +778,9 @@ class _RsvpButton extends StatelessWidget {
       child: Material(
         color: selected
             ? brand.withValues(alpha: .15)
-            : colors.surfaceContainerLow.withValues(alpha: .7),
+            : colors.surfaceContainerHigh.withValues(alpha: .6),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(StepShape.radiusSmall),
-          side: BorderSide(color: selected ? brand : colors.outlineVariant),
         ),
         child: InkWell(
           onTap: onTap,
@@ -914,12 +903,7 @@ class _ReactionChip extends StatelessWidget {
                 colors.surfaceContainerLow,
               )
             : colors.surfaceContainerLow,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: mine ? brand.withValues(alpha: .4) : colors.outlineVariant,
-          ),
-        ),
-        elevation: 0.5,
+        shape: const StadiumBorder(),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,

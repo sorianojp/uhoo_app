@@ -84,10 +84,10 @@ abstract final class StepShape {
   );
 }
 
-/// Tailwind `shadow-sm`, used by bubbles and cards on the web.
-const stepShadowSmall = [
-  BoxShadow(color: Color(0x0d000000), blurRadius: 2, offset: Offset(0, 1)),
-];
+/// Flat by design: surfaces are told apart by colour, not shadows or lines
+/// (the web app is styled the same way). Kept as a hook for widgets that
+/// still pass it.
+const stepShadowSmall = <BoxShadow>[];
 
 const _text = 'Inter';
 const _heading = 'PlusJakartaSans';
@@ -184,7 +184,6 @@ ThemeData stepTheme(Brightness brightness) {
       foregroundColor: colors.onSurface,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      shape: Border(bottom: BorderSide(color: colors.outlineVariant)),
       titleTextStyle: TextStyle(
         fontFamily: _heading,
         color: colors.onSurface,
@@ -241,7 +240,8 @@ ThemeData stepTheme(Brightness brightness) {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 44),
         foregroundColor: colors.onSurface,
-        side: BorderSide(color: colors.outlineVariant),
+        backgroundColor: dark ? StepPalette.mutedDark : StepPalette.muted,
+        side: BorderSide.none,
         textStyle: const TextStyle(
           fontFamily: _text,
           fontSize: 14,
@@ -314,8 +314,9 @@ ThemeData stepTheme(Brightness brightness) {
       ),
       shape: RoundedRectangleBorder(borderRadius: radiusMedium),
     ),
-    dividerTheme: DividerThemeData(
-      color: colors.outlineVariant,
+    dividerTheme: const DividerThemeData(
+      // Spacing only; no visible rules.
+      color: Colors.transparent,
       thickness: 1,
       space: 1,
     ),
@@ -333,7 +334,8 @@ ThemeData stepTheme(Brightness brightness) {
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: brandSolid,
       foregroundColor: StepPalette.brandForeground,
-      elevation: 1,
+      elevation: 0,
+      highlightElevation: 0,
       shape: RoundedRectangleBorder(borderRadius: radiusLarge),
     ),
     navigationBarTheme: NavigationBarThemeData(
