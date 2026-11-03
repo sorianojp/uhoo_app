@@ -209,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               title: Text(
                 conversation.name,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -478,7 +478,7 @@ class _HomeScreenState extends State<HomeScreen> {
         textAlign: TextAlign.center,
         style: Theme.of(
           context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
       ),
       const SizedBox(height: 6),
       Text(session.user!.email, textAlign: TextAlign.center),
@@ -649,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const ListTile(
               title: Text(
                 'Your workspaces',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             for (final team in session.teams)
@@ -712,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: .8,
                         color: colors.onSurfaceVariant,
                       ),
@@ -1077,7 +1077,7 @@ class _CountBadge extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: muted ? 11 : 10,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             color: muted ? colors.onSurface : colors.onPrimary,
           ),
         ),

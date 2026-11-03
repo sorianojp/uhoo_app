@@ -718,7 +718,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               const ListTile(
                 title: Text(
                   'Forward to',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
               for (final c in conversations)
@@ -837,7 +837,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontFamily: 'Inter',
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -.16,

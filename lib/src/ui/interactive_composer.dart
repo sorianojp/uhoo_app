@@ -100,7 +100,7 @@ class _InteractiveComposerState extends State<InteractiveComposer> {
                 : 'Bring everyone together.',
             style: Theme.of(
               context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 24),
           TextFormField(

@@ -88,7 +88,7 @@ class MessageBubble extends StatelessWidget {
         : colors.onSurfaceVariant;
     final accent = outgoing ? ink : brand;
     const tail = Radius.circular(StepShape.radiusBubbleTail);
-    const round = Radius.circular(StepShape.radiusLarge);
+    const round = Radius.circular(StepShape.radiusBubble);
     final width = MediaQuery.sizeOf(context).width;
     final maxBubbleWidth = (width * .76).clamp(0, 420).toDouble();
     final timestamp = [

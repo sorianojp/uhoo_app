@@ -8,10 +8,7 @@ import 'src/data/session.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
-    for (final (family, file) in [
-      ('Inter', 'OFL-Inter.txt'),
-      ('Plus Jakarta Sans', 'OFL-PlusJakartaSans.txt'),
-    ]) {
+    for (final (family, file) in [('Google Sans', 'OFL-GoogleSans.txt')]) {
       yield LicenseEntryWithLineBreaks([
         family,
       ], await rootBundle.loadString('assets/fonts/$file'));

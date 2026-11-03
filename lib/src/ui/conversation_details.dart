@@ -137,7 +137,7 @@ class _ConversationDetailsState extends State<ConversationDetails> {
                   const ListTile(
                     title: Text(
                       'Add people',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                   Expanded(
@@ -219,7 +219,7 @@ class _ConversationDetailsState extends State<ConversationDetails> {
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Text(
@@ -350,7 +350,7 @@ class _ConversationDetailsState extends State<ConversationDetails> {
               style: TextStyle(
                 fontSize: 11,
                 letterSpacing: 1.2,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -390,7 +390,7 @@ class _ConversationDetailsState extends State<ConversationDetails> {
                   style: TextStyle(
                     fontSize: 11,
                     letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

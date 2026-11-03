@@ -1,44 +1,56 @@
 import 'package:flutter/material.dart';
 
 /// The web client's design tokens, copied from the `:root` and `.dark` blocks
-/// of chat-app/resources/css/app.css (Tailwind slate neutrals, STEP navy
-/// brand). Change both files together so the apps stay identical.
+/// of chat-app/resources/css/app.css, which mirror STEP's "Classic Navy,
+/// borderless" redesign. Change both files together so the apps stay
+/// identical.
 abstract final class StepPalette {
   // Light (:root)
-  static const background = Color(0xfff5f7fb);
-  static const foreground = Color(0xff0f172a);
+  static const background = Color(0xfff5f7fa);
+  static const foreground = Color(0xff1c2938);
   static const card = Color(0xffffffff);
-  static const muted = Color(0xfff1f5f9);
-  static const mutedForeground = Color(0xff64748b);
-  static const secondary = Color(0xffe2e8f0);
+  static const muted = Color(0xfff1f4f8);
+  static const mutedForeground = Color(0xff718096);
+
+  /// `--secondary`: the soft navy tint of secondary buttons and selections.
+  static const secondary = Color(0xffe8eef5);
+  static const secondaryForeground = Color(0xff1e3a5f);
   static const border = Color(0xffe2e8f0);
-  static const ring = Color(0xff3c53a9);
-  static const brand = Color(0xff1a2d61);
+  static const ring = Color(0xff7393b5);
+  static const brand = Color(0xff1e3a5f);
+  static const brandHover = Color(0xff162d4a);
   static const brandForeground = Color(0xffffffff);
-  static const destructive = Color(0xffdc2626);
+  static const destructive = Color(0xffb91c1c);
   static const messageIncoming = Color(0xffffffff);
 
+  /// `--field` and `--field-active`: borderless inputs, and their hover/focus.
+  static const field = Color(0xfff1f4f8);
+  static const fieldActive = Color(0xffe8eef5);
+
   // Dark (.dark)
-  static const backgroundDark = Color(0xff0f172a);
+  static const backgroundDark = Color(0xff0d1828);
   static const foregroundDark = Color(0xfff1f5f9);
-  static const cardDark = Color(0xff1e293b);
-  static const mutedDark = Color(0xff273449);
-  static const mutedForegroundDark = Color(0xff94a3b8);
-  static const secondaryDark = Color(0xff334155);
-  static const borderDark = Color(0xff334155);
-  static const ringDark = Color(0xff748bd4);
+  static const cardDark = Color(0xff17283d);
+  static const mutedDark = Color(0xff203650);
+  static const mutedForegroundDark = Color(0xffacbbca);
+  static const secondaryDark = Color(0xff21344b);
+  static const secondaryForegroundDark = Color(0xffb4c7dc);
+  static const borderDark = Color(0xff203650);
+  static const ringDark = Color(0xff8baed3);
+  static const fieldDark = Color(0xff203650);
+  static const fieldActiveDark = Color(0xff2b4462);
 
   /// `--brand` in dark mode: text and icons on dark surfaces.
-  static const brandDark = Color(0xff9eafe4);
+  static const brandDark = Color(0xff8baed3);
 
   /// `--brand-solid` in dark mode: filled buttons and outgoing bubbles.
-  static const brandSolidDark = Color(0xff324388);
+  static const brandSolidDark = Color(0xff1e3a5f);
   static const destructiveDark = Color(0xfff87171);
-  static const messageIncomingDark = Color(0xff1e293b);
+  static const messageIncomingDark = Color(0xff17283d);
 
-  /// `bg-brand/10`: the selected conversation row and tinted chips.
-  static const accentSurface = Color(0x1a1a2d61);
-  static const accentSurfaceDark = Color(0x269eafe4);
+  /// `bg-secondary`: the selected conversation row and selected chips.
+  static const accentSurface = secondary;
+  static const accentSurfaceDark = secondaryDark;
 
   /// Presence and read receipts (`--online`).
   static const online = Color(0xff16a34a);
@@ -48,16 +60,19 @@ abstract final class StepPalette {
       brightness == Brightness.dark ? onlineDark : online;
 }
 
-/// Tailwind's radius scale as the web uses it.
+/// STEP's corner scale as the web uses it.
 abstract final class StepShape {
-  /// rounded-lg
-  static const radiusSmall = 8.0;
+  /// rounded-lg: chips and other small items.
+  static const radiusSmall = 6.0;
 
   /// rounded-xl: inputs, buttons, conversation rows.
-  static const radiusMedium = 12.0;
+  static const radiusMedium = 8.0;
 
-  /// rounded-2xl: cards, sheets, message bubbles.
-  static const radiusLarge = 16.0;
+  /// rounded-card: cards, sheets, dialogs.
+  static const radiusLarge = 12.0;
+
+  /// rounded-2xl: message bubbles.
+  static const radiusBubble = 16.0;
 
   /// rounded-md: the bubble corner next to its author.
   static const radiusBubbleTail = 6.0;
@@ -89,8 +104,8 @@ abstract final class StepShape {
 /// still pass it.
 const stepShadowSmall = <BoxShadow>[];
 
-const _text = 'Inter';
-const _heading = 'PlusJakartaSans';
+const _text = 'GoogleSans';
+const _heading = 'GoogleSans';
 
 ThemeData stepTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
@@ -114,8 +129,8 @@ ThemeData stepTheme(Brightness brightness) {
             ? StepPalette.secondaryDark
             : StepPalette.secondary,
         onSecondaryContainer: dark
-            ? StepPalette.foregroundDark
-            : StepPalette.foreground,
+            ? StepPalette.secondaryForegroundDark
+            : StepPalette.secondaryForeground,
         tertiary: dark ? StepPalette.brandDark : StepPalette.brand,
         error: dark ? StepPalette.destructiveDark : StepPalette.destructive,
         onError: dark ? const Color(0xff2a0b0b) : Colors.white,
@@ -127,8 +142,8 @@ ThemeData stepTheme(Brightness brightness) {
         surfaceContainer: dark ? StepPalette.cardDark : StepPalette.card,
         surfaceContainerHigh: dark ? StepPalette.mutedDark : StepPalette.muted,
         surfaceContainerHighest: dark
-            ? StepPalette.secondaryDark
-            : StepPalette.secondary,
+            ? StepPalette.borderDark
+            : StepPalette.border,
         onSurface: dark ? StepPalette.foregroundDark : StepPalette.foreground,
         onSurfaceVariant: dark
             ? StepPalette.mutedForegroundDark
@@ -138,25 +153,25 @@ ThemeData stepTheme(Brightness brightness) {
         surfaceTint: Colors.transparent,
       );
 
-  // Web: body is Inter 500 with -0.01em tracking; headings are Plus Jakarta
-  // Sans with -0.025em.
+  // Web: body is Google Sans 400 with -0.01em tracking; headings are
+  // semibold with -0.025em.
   const textTheme = TextTheme(
     headlineMedium: TextStyle(
       fontFamily: _heading,
       fontSize: 28,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w600,
       letterSpacing: -.7,
     ),
     headlineSmall: TextStyle(
       fontFamily: _heading,
       fontSize: 22,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
       letterSpacing: -.55,
     ),
     titleLarge: TextStyle(
       fontFamily: _heading,
       fontSize: 20,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
       letterSpacing: -.5,
     ),
     titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -188,7 +203,7 @@ ThemeData stepTheme(Brightness brightness) {
         fontFamily: _heading,
         color: colors.onSurface,
         fontSize: 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         letterSpacing: -.45,
       ),
     ),
@@ -198,11 +213,15 @@ ThemeData stepTheme(Brightness brightness) {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: radiusLarge),
     ),
-    // Web inputs: h-11, rounded-xl, `bg-secondary/70`, no border until focus.
+    // Web inputs: h-11, rounded-xl, `bg-field` that deepens to
+    // `bg-field-active` on focus, with a soft ring and no border.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: (dark ? StepPalette.secondaryDark : StepPalette.secondary)
-          .withValues(alpha: .7),
+      fillColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.focused)
+            ? (dark ? StepPalette.fieldActiveDark : StepPalette.fieldActive)
+            : (dark ? StepPalette.fieldDark : StepPalette.field),
+      ),
       hintStyle: TextStyle(color: colors.onSurfaceVariant),
       border: OutlineInputBorder(
         borderRadius: radiusMedium,
@@ -216,7 +235,7 @@ ThemeData stepTheme(Brightness brightness) {
         borderRadius: radiusMedium,
         borderSide: BorderSide(
           color: (dark ? StepPalette.ringDark : StepPalette.ring).withValues(
-            alpha: .45,
+            alpha: .4,
           ),
           width: 2,
         ),
@@ -237,10 +256,15 @@ ThemeData stepTheme(Brightness brightness) {
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
+      // STEP's secondary button: the soft navy tint, no border.
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 44),
-        foregroundColor: colors.onSurface,
-        backgroundColor: dark ? StepPalette.mutedDark : StepPalette.muted,
+        foregroundColor: dark
+            ? StepPalette.secondaryForegroundDark
+            : StepPalette.secondaryForeground,
+        backgroundColor: dark
+            ? StepPalette.secondaryDark
+            : StepPalette.secondary,
         side: BorderSide.none,
         textStyle: const TextStyle(
           fontFamily: _text,
@@ -281,14 +305,15 @@ ThemeData stepTheme(Brightness brightness) {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: dark ? StepPalette.mutedDark : StepPalette.muted,
-      // Selected: `bg-brand/15 text-brand`, as on the web's toggles.
-      selectedColor: (dark ? StepPalette.brandDark : StepPalette.brand)
-          .withValues(alpha: .15),
+      // Selected: `bg-secondary text-secondary-foreground`, as on the web.
+      selectedColor: dark ? StepPalette.secondaryDark : StepPalette.secondary,
       secondaryLabelStyle: TextStyle(
         fontFamily: _text,
         fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: dark ? StepPalette.brandDark : StepPalette.brand,
+        fontWeight: FontWeight.w600,
+        color: dark
+            ? StepPalette.secondaryForegroundDark
+            : StepPalette.secondaryForeground,
       ),
       side: BorderSide.none,
       labelStyle: TextStyle(
@@ -325,7 +350,7 @@ ThemeData stepTheme(Brightness brightness) {
           textStyle: TextStyle(
             fontFamily: _text,
             fontSize: 10,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ).copyWith(
           backgroundColor: brandSolid,
@@ -349,7 +374,7 @@ ThemeData stepTheme(Brightness brightness) {
           fontFamily: _text,
           fontSize: 12,
           fontWeight: states.contains(WidgetState.selected)
-              ? FontWeight.w700
+              ? FontWeight.w600
               : FontWeight.w500,
           color: states.contains(WidgetState.selected)
               ? (dark ? StepPalette.brandDark : StepPalette.brand)
@@ -370,7 +395,7 @@ ThemeData stepTheme(Brightness brightness) {
       titleTextStyle: TextStyle(
         fontFamily: _heading,
         fontSize: 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         letterSpacing: -.45,
         color: colors.onSurface,
       ),
