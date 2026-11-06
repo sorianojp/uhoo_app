@@ -31,6 +31,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
   String _mode = 'direct';
   bool get _group => _mode == 'group';
 
+  /// In New message, an empty search lists only up to five recent chat
+  /// partners (plus anyone already selected); with none, the list is empty.
+  bool get _suggesting => widget.selecting && _search.text.trim().isEmpty;
+  List<Person> get _shown => _suggesting
+      ? [
+          ..._selected.values,
+          ..._people.where((p) => !_selected.containsKey(p.id)),
+        ]
+      : _people;
+
   /// STEP classes this user teaches; the Class tab only shows when non-empty.
   List<SchoolClassSummary> _classes = [];
   Object? _error;
@@ -90,7 +100,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
       final data = PageData.from(
         await widget.session.api.request(
           'GET',
-          '${widget.session.teamPath}/contacts?page=${more ? _next : 1}&search=${Uri.encodeQueryComponent(_search.text.trim())}',
+          _suggesting
+              ? '${widget.session.teamPath}/contacts?suggested=1'
+              : '${widget.session.teamPath}/contacts?page=${more ? _next : 1}&search=${Uri.encodeQueryComponent(_search.text.trim())}',
         ),
         Person.new,
       );
@@ -256,7 +268,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       child: const Text('Retry'),
                     ),
                   )
-                : _people.isEmpty
+                : _shown.isEmpty && _suggesting
+                ? const SizedBox.shrink()
+                : _shown.isEmpty
                 ? const EmptyState(
                     icon: Icons.people_outline,
                     title: 'No people found',
@@ -268,15 +282,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     child: ListView.builder(
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
                       physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: _people.length + (_next != null ? 1 : 0),
+                      itemCount:
+                          _shown.length +
+                          (_suggesting ? 1 : 0) +
+                          (_next != null ? 1 : 0),
                       itemBuilder: (context, index) {
-                        if (index == _people.length) {
+                        if (_suggesting) {
+                          if (index == 0) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                              child: Text(
+                                'Suggested',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          }
+                          index--;
+                        }
+                        if (index == _shown.length) {
                           return TextButton(
                             onPressed: () => _load(more: true),
                             child: const Text('Load more people'),
                           );
                         }
-                        final person = _people[index];
+                        final person = _shown[index];
                         final selected = _selected.containsKey(person.id);
                         return Material(
                           color: Colors.transparent,
