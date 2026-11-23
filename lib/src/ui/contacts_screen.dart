@@ -11,10 +11,12 @@ class ContactsScreen extends StatefulWidget {
     required this.session,
     this.selecting = false,
     this.onOpen,
+    this.bottomInset = 0,
   });
   final SessionController session;
   final bool selecting;
   final Future<void> Function(Conversation)? onOpen;
+  final double bottomInset;
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
@@ -277,7 +279,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: EdgeInsets.only(bottom: 12 + widget.bottomInset),
                       physics: const AlwaysScrollableScrollPhysics(),
                       itemCount:
                           _shown.length +
@@ -384,7 +386,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  20 + (widget.selecting ? 0 : widget.bottomInset),
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton(

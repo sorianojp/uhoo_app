@@ -320,12 +320,20 @@ void main() {
     final session = TestSession(client);
     await tester.pumpWidget(UhooApp(session: session));
     await tester.pumpAndSettle();
-    // Page title and the labelled tab both say "Chat".
-    expect(find.text('Chat'), findsNWidgets(2));
+    // Page title says "Chat"; bottom navbar is icon-only (tooltips/semantics).
+    expect(find.text('Chat'), findsOneWidget);
     expect(find.text('Chats'), findsNothing);
     expect(find.text('Messages'), findsNothing);
     expect(find.byTooltip('Messages'), findsOneWidget);
     expect(find.byTooltip('New message'), findsOneWidget);
+    expect(find.byKey(const ValueKey('ios-glass-navbar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('nav-unread-badge')), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.people_alt_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     session.dispose();

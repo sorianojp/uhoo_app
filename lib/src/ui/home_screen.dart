@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -736,6 +737,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Messenger-style: one flat surface from header to tab bar.
     final surface = colors.surfaceContainerLow;
     return Scaffold(
+      extendBody: true,
       backgroundColor: surface,
       appBar: AppBar(
         toolbarHeight: 64,
@@ -810,9 +812,13 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
           child: switch (_tab) {
-            0 => _inbox(0),
-            1 => ContactsScreen(session: session, onOpen: _open),
-            _ => _settings(0),
+            0 => _inbox(_HomeNavigationBar.clearance),
+            1 => ContactsScreen(
+              session: session,
+              onOpen: _open,
+              bottomInset: _HomeNavigationBar.clearance,
+            ),
+            _ => _settings(_HomeNavigationBar.clearance),
           },
         ),
       ),
@@ -988,7 +994,9 @@ class _ActivePerson extends StatelessWidget {
   }
 }
 
-/// Messenger-style tab bar: icon over label, brand colour when selected.
+/// Modern iOS Facebook Messenger-style floating frosted-glass pill tab bar:
+/// translucent capsule with sliding active pill highlight, solid filled icons,
+/// cutout red unread badge, and subtle spring tap bounce.
 class _HomeNavigationBar extends StatelessWidget {
   const _HomeNavigationBar({
     required this.selectedIndex,
@@ -996,60 +1004,119 @@ class _HomeNavigationBar extends StatelessWidget {
     required this.onDestinationSelected,
   });
 
+  /// Scrollable bottom clearance so content clears the floating capsule.
+  static const clearance = 78.0;
+
   final int selectedIndex;
   final int unread;
   final ValueChanged<int> onDestinationSelected;
 
   static const _destinations = [
-    (
-      label: 'Chat',
-      tooltip: 'Messages',
-      icon: Icons.chat_bubble_outline_rounded,
-      selectedIcon: Icons.chat_bubble_rounded,
-    ),
-    (
-      label: 'People',
-      tooltip: 'People',
-      icon: Icons.people_outline,
-      selectedIcon: Icons.people,
-    ),
-    (
-      label: 'Profile',
-      tooltip: 'Profile',
-      icon: Icons.person_outline,
-      selectedIcon: Icons.person,
-    ),
+    (label: 'Chat', tooltip: 'Messages', icon: Icons.chat_bubble_rounded),
+    (label: 'People', tooltip: 'People', icon: Icons.people_alt_rounded),
+    (label: 'Profile', tooltip: 'Profile', icon: Icons.person_rounded),
   ];
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surfaceContainerLow,
-      child: SafeArea(
-        top: false,
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final glassFill = dark
+        ? StepPalette.cardDark.withValues(alpha: 0.78)
+        : Colors.white.withValues(alpha: 0.80);
+    final glassBorder = dark
+        ? Colors.white.withValues(alpha: 0.14)
+        : colors.outlineVariant.withValues(alpha: 0.55);
+    final activePillColor = dark
+        ? Colors.white.withValues(alpha: 0.13)
+        : StepPalette.secondary.withValues(alpha: 0.90);
+    final badgeRingBase = dark ? StepPalette.cardDark : Colors.white;
+    final pillAlignmentX = _destinations.length <= 1
+        ? 0.0
+        : -1.0 + (2.0 * selectedIndex / (_destinations.length - 1));
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: SizedBox(
-              height: 58,
-              child: Row(
-                children: [
-                  for (var i = 0; i < _destinations.length; i++)
-                    Expanded(
-                      child: _HomeNavigationItem(
-                        label: _destinations[i].label,
-                        tooltip: _destinations[i].tooltip,
-                        icon: i == selectedIndex
-                            ? _destinations[i].selectedIcon
-                            : _destinations[i].icon,
-                        selected: i == selectedIndex,
-                        badge: i == 0 ? unread : 0,
-                        onTap: () => onDestinationSelected(i),
-                      ),
-                    ),
+            constraints: const BoxConstraints(maxWidth: 264),
+            child: DecoratedBox(
+              key: const ValueKey('ios-glass-navbar'),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(StepShape.radiusPill),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: dark ? 0.36 : 0.12),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: dark ? 0.20 : 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(StepShape.radiusPill),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: Container(
+                    height: 56,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: glassFill,
+                      borderRadius: BorderRadius.circular(StepShape.radiusPill),
+                      border: Border.all(color: glassBorder, width: 1),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: AnimatedAlign(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            alignment: Alignment(pillAlignmentX, 0),
+                            child: FractionallySizedBox(
+                              widthFactor: 1 / _destinations.length,
+                              heightFactor: 1,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: activePillColor,
+                                  borderRadius: BorderRadius.circular(
+                                    StepShape.radiusPill,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            for (var i = 0; i < _destinations.length; i++)
+                              Expanded(
+                                child: _HomeNavigationItem(
+                                  label: _destinations[i].label,
+                                  tooltip: _destinations[i].tooltip,
+                                  icon: _destinations[i].icon,
+                                  selected: i == selectedIndex,
+                                  badge: i == 0 ? unread : 0,
+                                  badgeRingColor: i == selectedIndex
+                                      ? (dark
+                                            ? StepPalette.secondaryDark
+                                            : StepPalette.secondary)
+                                      : badgeRingBase,
+                                  onTap: () => onDestinationSelected(i),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1059,13 +1126,14 @@ class _HomeNavigationBar extends StatelessWidget {
   }
 }
 
-class _HomeNavigationItem extends StatelessWidget {
+class _HomeNavigationItem extends StatefulWidget {
   const _HomeNavigationItem({
     required this.label,
     required this.tooltip,
     required this.icon,
     required this.selected,
     required this.badge,
+    required this.badgeRingColor,
     required this.onTap,
   });
 
@@ -1074,42 +1142,90 @@ class _HomeNavigationItem extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final int badge;
+  final Color badgeRingColor;
   final VoidCallback onTap;
+
+  @override
+  State<_HomeNavigationItem> createState() => _HomeNavigationItemState();
+}
+
+class _HomeNavigationItemState extends State<_HomeNavigationItem> {
+  static const _messengerBadgeRed = Color(0xFFFA383E);
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final foreground = selected ? brandText(context) : colors.onSurfaceVariant;
+    final foreground = widget.selected
+        ? brandText(context)
+        : colors.onSurfaceVariant.withValues(alpha: 0.78);
+    final badgeText = widget.badge > 99 ? '99+' : '${widget.badge}';
 
     return Semantics(
-      selected: selected,
+      selected: widget.selected,
       button: true,
+      label: widget.label,
       child: Tooltip(
-        message: tooltip,
+        message: widget.tooltip,
         excludeFromSemantics: true,
-        child: InkResponse(
-          onTap: onTap,
-          radius: 36,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Badge(
-                isLabelVisible: badge > 0,
-                label: Text(badge > 99 ? '99+' : '$badge'),
-                backgroundColor: colors.error,
-                textColor: colors.onError,
-                child: Icon(icon, color: foreground, size: 25),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => _setPressed(true),
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          onTap: widget.onTap,
+          child: Center(
+            child: AnimatedScale(
+              scale: _pressed ? 0.88 : 1.0,
+              duration: Duration(milliseconds: _pressed ? 80 : 180),
+              curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(widget.icon, color: foreground, size: 26),
+                  if (widget.badge > 0)
+                    Positioned(
+                      top: -5,
+                      right: widget.badge > 9 ? -12 : -8,
+                      child: Container(
+                        key: const ValueKey('nav-unread-badge'),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: widget.badge > 9 ? 5 : 4,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _messengerBadgeRed,
+                          borderRadius: BorderRadius.circular(
+                            StepShape.radiusPill,
+                          ),
+                          border: Border.all(
+                            color: widget.badgeRingColor,
+                            width: 1.75,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          badgeText,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            height: 1.0,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color: foreground,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
