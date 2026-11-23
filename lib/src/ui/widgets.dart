@@ -258,3 +258,20 @@ Future<String?> askText(
   Future<void>.delayed(const Duration(seconds: 1), controller.dispose);
   return result;
 }
+
+/// Messenger's rounded search field.
+InputDecoration pillSearchDecoration(BuildContext context, String hint) {
+  const pill = OutlineInputBorder(
+    borderRadius: BorderRadius.all(Radius.circular(StepShape.radiusPill)),
+    borderSide: BorderSide.none,
+  );
+  return InputDecoration(
+    hintText: hint,
+    isDense: true,
+    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    border: pill,
+    enabledBorder: pill,
+    focusedBorder: pill,
+  );
+}

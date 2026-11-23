@@ -164,7 +164,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(StepShape.radiusMedium),
+                borderRadius: BorderRadius.circular(StepShape.radiusPill),
               ),
               child: Row(
                 children: [
@@ -230,13 +230,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
         ] else ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
               controller: _search,
-              decoration: const InputDecoration(
-                hintText: 'Search people',
-                prefixIcon: Icon(Icons.search),
-              ),
+              decoration: pillSearchDecoration(context, 'Search people'),
               onChanged: (_) {
                 _debounce?.cancel();
                 _debounce = Timer(const Duration(milliseconds: 300), _load);
@@ -280,7 +277,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      padding: const EdgeInsets.only(bottom: 12),
                       physics: const AlwaysScrollableScrollPhysics(),
                       itemCount:
                           _shown.length +
@@ -290,7 +287,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         if (_suggesting) {
                           if (index == 0) {
                             return Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                               child: Text(
                                 'Suggested',
                                 style: TextStyle(
@@ -315,13 +312,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         final selected = _selected.containsKey(person.id);
                         return Material(
                           color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(
-                            StepShape.radiusMedium,
-                          ),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(
-                              StepShape.radiusMedium,
-                            ),
                             onTap: _creating
                                 ? null
                                 : () => _group
@@ -329,14 +320,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                       : _create([person]),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 12,
+                                horizontal: 16,
+                                vertical: 8,
                               ),
                               child: Row(
                                 children: [
                                   PersonAvatar(
                                     person.name,
-                                    size: 44,
+                                    size: 48,
                                     online: person.online,
                                   ),
                                   const SizedBox(width: 12),
@@ -350,13 +341,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
-                                        const SizedBox(height: 3),
+                                        const SizedBox(height: 2),
                                         Text(
-                                          person.role,
+                                          person.online
+                                              ? '${person.role} · Active now'
+                                              : person.role,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
@@ -374,11 +367,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                     _ContactSelectionMark(selected: selected)
                                   else
                                     Icon(
-                                      Icons.chat_bubble_outline_rounded,
+                                      Icons.chat_bubble_rounded,
                                       size: 20,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
+                                      color: brandText(context),
                                     ),
                                 ],
                               ),
@@ -452,16 +443,16 @@ class _ConversationModeButton extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: selected ? colors.surfaceContainerLow : Colors.transparent,
-        borderRadius: BorderRadius.circular(StepShape.radiusSmall),
+        borderRadius: BorderRadius.circular(StepShape.radiusPill),
         boxShadow: selected ? stepShadowSmall : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(StepShape.radiusSmall),
+          borderRadius: BorderRadius.circular(StepShape.radiusPill),
           child: SizedBox(
-            height: 40,
+            height: 36,
             child: Center(
               child: Text(
                 label,

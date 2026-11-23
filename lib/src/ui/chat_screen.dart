@@ -41,6 +41,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _body = TextEditingController();
   final _search = TextEditingController();
   final _scroll = ScrollController();
+  final _focus = FocusNode();
+  bool _composerFocused = false;
+  int? _timeShownId;
   List<ChatMessage> _messages = [];
   List<_PendingFile> _files = [];
   ChatMessage? _reply;
@@ -78,6 +81,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _focus.addListener(() {
+      if (mounted && _focus.hasFocus != _composerFocused) {
+        setState(() => _composerFocused = _focus.hasFocus);
+      }
+    });
     _body.text = session.drafts[_conversation.id] ?? '';
     _scroll.addListener(_loadOlderNearTop);
     _load().then((_) {
@@ -550,20 +558,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Messenger's reaction tray: a pill of emoji over the actions.
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                child: Wrap(
-                  spacing: 5,
-                  children: [
-                    for (final emoji in ['👍', '❤️', '😂', '😮', '🙏', '✅'])
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, emoji),
-                        child: Text(
-                          emoji,
-                          style: const TextStyle(fontSize: 25),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(StepShape.radiusPill),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final emoji in ['👍', '❤️', '😂', '😮', '🙏', '✅'])
+                        IconButton(
+                          tooltip: 'React $emoji',
+                          onPressed: () => Navigator.pop(context, emoji),
+                          icon: Text(
+                            emoji,
+                            style: const TextStyle(fontSize: 26),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               ListTile(
@@ -795,6 +815,134 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Consecutive messages from one person within a few minutes form a run.
+  static bool _sameRun(ChatMessage? a, ChatMessage? b) {
+    if (a == null || b == null) return false;
+    if (a.type == 'system' || b.type == 'system') return false;
+    if (a.sender?.id == null || a.sender?.id != b.sender?.id) return false;
+    final at = a.created;
+    final bt = b.created;
+    if (at == null || bt == null) return true;
+    return bt.difference(at).abs() < const Duration(minutes: 5);
+  }
+
+  static String _dayLabel(DateTime day) {
+    final now = DateTime.now();
+    final time = DateFormat.jm().format(day);
+    if (DateUtils.isSameDay(day, now)) return 'Today $time';
+    if (DateUtils.isSameDay(day, now.subtract(const Duration(days: 1)))) {
+      return 'Yesterday $time';
+    }
+    if (now.difference(day).inDays < 7) {
+      return '${DateFormat.E().format(day)} $time';
+    }
+    if (day.year == now.year) return '${DateFormat.MMMd().format(day)}, $time';
+    return '${DateFormat.yMMMd().format(day)}, $time';
+  }
+
+  /// Messenger's composer: quick actions on the left (folded away while
+  /// typing), a pill text field, and Send on the right.
+  Widget _composer(ColorScheme colors) {
+    final brand = brandText(context);
+    final hasText = _body.text.trim().isNotEmpty || _files.isNotEmpty;
+    final canAct = !_sending && _editing == null;
+    final actions = <(String, IconData, VoidCallback)>[
+      ('Attach file', Icons.add_circle_rounded, _pickFiles),
+      (
+        'Record voice message',
+        Icons.mic_rounded,
+        () {
+          _stopTyping();
+          setState(() => _recordingVoice = true);
+        },
+      ),
+      ('Create poll', Icons.poll_rounded, () => _interactive('polls')),
+      ('Create event', Icons.event_rounded, () => _interactive('events')),
+    ];
+    Widget action((String, IconData, VoidCallback) a) => IconButton(
+      tooltip: a.$1,
+      visualDensity: VisualDensity.compact,
+      onPressed: canAct ? a.$3 : null,
+      icon: Icon(a.$2, size: 24, color: canAct ? brand : null),
+    );
+    final collapsed = _composerFocused && hasText;
+    const pill = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(22)),
+      borderSide: BorderSide.none,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: Alignment.centerLeft,
+          child: collapsed
+              ? IconButton(
+                  tooltip: 'More actions',
+                  visualDensity: VisualDensity.compact,
+                  // Shows the actions again without closing the keyboard.
+                  onPressed: () => setState(() => _composerFocused = false),
+                  icon: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 28,
+                    color: brand,
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [for (final a in actions) action(a)],
+                ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: TextField(
+            controller: _body,
+            focusNode: _focus,
+            enabled: !_sending,
+            minLines: 1,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 15),
+            decoration: const InputDecoration(
+              hintText: 'Type a message...',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              border: pill,
+              enabledBorder: pill,
+              focusedBorder: pill,
+              disabledBorder: pill,
+            ),
+            onChanged: (_) => _composerChanged(),
+            onTap: () => Future.microtask(_syncMentions),
+          ),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          tooltip: _editing != null ? 'Save edit' : 'Send message',
+          visualDensity: VisualDensity.compact,
+          onPressed: _sending || !hasText ? null : _send,
+          icon: _sending
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  _editing != null
+                      ? Icons.check_circle_rounded
+                      : Icons.send_rounded,
+                  size: 26,
+                  color: hasText ? brand : colors.onSurfaceVariant,
+                ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final other = _conversation.participants
@@ -815,10 +963,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         p.id: (p.nickname?.isNotEmpty ?? false) ? p.nickname! : p.name,
     };
     return Scaffold(
+      backgroundColor: chatBackground(context),
       appBar: AppBar(
         titleSpacing: 0,
+        toolbarHeight: 60,
+        shape: Border(
+          bottom: BorderSide(color: colors.outlineVariant, width: .5),
+        ),
         title: InkWell(
           onTap: _details,
+          borderRadius: BorderRadius.circular(StepShape.radiusMedium),
           child: Row(
             children: [
               ConversationAvatar(
@@ -838,12 +992,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: -.16,
                         color: colors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 1),
                     // Web: typing in brand, otherwise a presence dot + status.
                     Semantics(
                       liveRegion: _typingPeople.isNotEmpty,
@@ -858,38 +1012,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 color: brandText(context),
                               ),
                             )
-                          : Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: online
-                                        ? StepPalette.onlineFor(
-                                            Theme.of(context).brightness,
-                                          )
-                                        : colors.surfaceContainerHighest,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    conversationStatus(
-                                      _conversation,
-                                      session.user!.id,
-                                      DateTime.now(),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w400,
-                                      color: colors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                          : Text(
+                              conversationStatus(
+                                _conversation,
+                                session.user!.id,
+                                DateTime.now(),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.onSurfaceVariant,
+                              ),
                             ),
                     ),
                   ],
@@ -908,13 +1042,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               });
               _load(reset: true);
             },
-            icon: Icon(_searching ? Icons.close : Icons.search),
+            icon: Icon(
+              _searching ? Icons.close_rounded : Icons.search_rounded,
+              color: brandText(context),
+            ),
           ),
           IconButton(
             tooltip: 'Conversation details',
             onPressed: _details,
-            icon: const Icon(Icons.more_horiz),
+            icon: Icon(Icons.info_rounded, color: brandText(context)),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Center(
@@ -940,9 +1078,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: TextField(
                     controller: _search,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Search messages and files',
-                      prefixIcon: Icon(Icons.search),
+                    decoration: pillSearchDecoration(
+                      context,
+                      'Search messages and files',
                     ),
                     onChanged: (_) {
                       _debounce?.cancel();
@@ -1019,11 +1157,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           final older = index + 1 < _messages.length
                               ? _messages[index + 1]
                               : null;
+                          final newer = index > 0 ? _messages[index - 1] : null;
                           final day = message.created;
                           final showDay =
                               day != null &&
                               (older == null ||
                                   !DateUtils.isSameDay(day, older.created));
+                          final groupedWithPrevious =
+                              !showDay && _sameRun(older, message);
+                          final groupedWithNext =
+                              newer != null &&
+                              DateUtils.isSameDay(newer.created, day) &&
+                              _sameRun(message, newer);
                           return AnimatedContainer(
                             key: _messageKeys.putIfAbsent(
                               message.id,
@@ -1041,12 +1186,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       vertical: 16,
                                     ),
                                     child: Text(
-                                      DateUtils.isSameDay(day, DateTime.now())
-                                          ? 'Today'
-                                          : DateFormat.yMMMd().format(day),
+                                      _dayLabel(day),
                                       style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
                                         color: colors.onSurfaceVariant,
                                       ),
                                     ),
@@ -1059,6 +1202,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   group: _conversation.group,
                                   senderName: names[message.sender?.id],
                                   status: statuses[message.id],
+                                  groupedWithPrevious: groupedWithPrevious,
+                                  groupedWithNext: groupedWithNext,
+                                  showTime: _timeShownId == message.id,
+                                  onTap: () => setState(
+                                    () => _timeShownId =
+                                        _timeShownId == message.id
+                                        ? null
+                                        : message.id,
+                                  ),
                                   onAction: () => _actions(message),
                                   onAttachment: (a) => _attachment(message, a),
                                   onReact: (emoji) => _react(message, emoji),
@@ -1079,7 +1231,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         },
                       ),
               ),
-              const Divider(),
               if (_reply != null || _editing != null)
                 Material(
                   color: colors.surfaceContainerLow,
@@ -1184,116 +1335,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 child: SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
                     child: _recordingVoice
-                        ? VoiceRecorderBar(onDone: _sendVoice)
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Web composer at phone width: text field and Send
-                              // on one row, the action icons underneath.
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _body,
-                                      enabled: !_sending,
-                                      minLines: 1,
-                                      maxLines: 5,
-                                      textCapitalization:
-                                          TextCapitalization.sentences,
-                                      style: const TextStyle(fontSize: 14),
-                                      decoration: const InputDecoration(
-                                        hintText: 'Type a message...',
-                                      ),
-                                      onChanged: (_) => _composerChanged(),
-                                      onTap: () =>
-                                          Future.microtask(_syncMentions),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton.filled(
-                                    tooltip: _editing != null
-                                        ? 'Save edit'
-                                        : 'Send message',
-                                    style: IconButton.styleFrom(
-                                      fixedSize: const Size(44, 44),
-                                      disabledBackgroundColor:
-                                          colors.surfaceContainerHigh,
-                                      disabledForegroundColor:
-                                          colors.onSurfaceVariant,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          StepShape.radiusMedium,
-                                        ),
-                                      ),
-                                    ),
-                                    onPressed:
-                                        _sending ||
-                                            (_body.text.trim().isEmpty &&
-                                                _files.isEmpty)
-                                        ? null
-                                        : _send,
-                                    icon: _sending
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : Icon(
-                                            _editing != null
-                                                ? Icons.check
-                                                : Icons.send_outlined,
-                                            size: 20,
-                                          ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  for (final (tooltip, icon, action)
-                                      in <(String, IconData, VoidCallback)>[
-                                        (
-                                          'Attach file',
-                                          Icons.attach_file,
-                                          _pickFiles,
-                                        ),
-                                        (
-                                          'Record voice message',
-                                          Icons.mic_none_rounded,
-                                          () {
-                                            _stopTyping();
-                                            setState(
-                                              () => _recordingVoice = true,
-                                            );
-                                          },
-                                        ),
-                                        (
-                                          'Create poll',
-                                          Icons.checklist_rounded,
-                                          () => _interactive('polls'),
-                                        ),
-                                        (
-                                          'Create event',
-                                          Icons.calendar_today_outlined,
-                                          () => _interactive('events'),
-                                        ),
-                                      ])
-                                    IconButton(
-                                      tooltip: tooltip,
-                                      onPressed: _sending || _editing != null
-                                          ? null
-                                          : action,
-                                      icon: Icon(icon, size: 20),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
+                        ? Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: VoiceRecorderBar(onDone: _sendVoice),
+                          )
+                        : _composer(colors),
                   ),
                 ),
               ),
@@ -1313,6 +1361,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     session.realtime?.unsubscribe('presence-conversations.${_conversation.id}');
     _body.dispose();
+    _focus.dispose();
     _search.dispose();
     _highlightTimer?.cancel();
     _scroll.dispose();

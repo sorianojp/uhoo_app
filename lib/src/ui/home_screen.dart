@@ -327,6 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _inbox(double bottomInset) {
     final query = _search.text.toLowerCase();
+    final me = session.user!.id;
     final conversations = _conversations
         .where(
           (c) =>
@@ -335,308 +336,349 @@ class _HomeScreenState extends State<HomeScreen> {
               (_filter != 'Groups' || c.group),
         )
         .toList();
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          child: TextField(
-            controller: _search,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Search conversations',
-              prefixIcon: Icon(Icons.search_rounded),
+    // Messenger's "active now" row: direct chats whose other person is online.
+    final active = _filter == 'All' && query.isEmpty
+        ? _conversations
+              .where(
+                (c) =>
+                    !c.group &&
+                    c.participants.any((p) => p.id != me && p.online),
+              )
+              .take(20)
+              .toList()
+        : const <Conversation>[];
+    return RefreshIndicator(
+      onRefresh: () => _load(reset: true),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: pillSearchDecoration(context, 'Search'),
+              ),
             ),
           ),
-        ),
-        SizedBox(
-          height: 44,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final filter in ['All', 'Unread', 'Groups', 'Archived'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(filter),
-                    selected: _filter == filter,
-                    showCheckmark: false,
-                    onSelected: _fetching
-                        ? null
-                        : (_) {
-                            final changed =
-                                (_filter == 'Archived') !=
-                                (filter == 'Archived');
-                            setState(() {
-                              _filter = filter;
-                              if (changed) {
-                                _conversations = [];
-                                _loading = true;
-                              }
-                            });
-                            if (changed) _load(reset: true);
-                          },
+          if (active.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 92,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: active.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 4),
+                  itemBuilder: (context, index) => _ActivePerson(
+                    session: session,
+                    conversation: active[index],
+                    onTap: () => _open(active[index]),
                   ),
                 ),
-            ],
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 44,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final filter in ['All', 'Unread', 'Groups', 'Archived'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: _filter == filter,
+                        showCheckmark: false,
+                        visualDensity: VisualDensity.compact,
+                        onSelected: _fetching
+                            ? null
+                            : (_) {
+                                final changed =
+                                    (_filter == 'Archived') !=
+                                    (filter == 'Archived');
+                                setState(() {
+                                  _filter = filter;
+                                  if (changed) {
+                                    _conversations = [];
+                                    _loading = true;
+                                  }
+                                });
+                                if (changed) _load(reset: true);
+                              },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 4)),
+          if (_error != null && _conversations.isNotEmpty)
+            SliverToBoxAdapter(
+              child: MaterialBanner(
+                content: const Text(
+                  'Could not refresh messages. Pull down to retry.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => _load(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          if (_loading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null && _conversations.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.wifi_off_rounded,
+                title: 'Unable to load messages',
+                message: _error.toString(),
+                action: FilledButton(
+                  onPressed: () => _load(reset: true),
+                  child: const Text('Try again'),
+                ),
+              ),
+            )
+          else if (conversations.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.chat_bubble_outline_rounded,
+                title: query.isNotEmpty
+                    ? 'No matching conversations'
+                    : _filter == 'Unread'
+                    ? 'You’re all caught up'
+                    : _filter == 'Archived'
+                    ? 'No archived conversations'
+                    : 'Start a conversation',
+                message: query.isNotEmpty
+                    ? 'Try a different name or load more conversations.'
+                    : 'Keep in touch with your school community.',
+                action: _filter == 'All' && query.isEmpty
+                    ? FilledButton.icon(
+                        onPressed: _compose,
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('New message'),
+                      )
+                    : null,
+              ),
+            )
+          else ...[
+            SliverList.builder(
+              itemCount: conversations.length,
+              itemBuilder: (context, index) {
+                final c = conversations[index];
+                return _ConversationRow(
+                  session: session,
+                  conversation: c,
+                  onTap: () => _open(c),
+                  onLongPress: () => _conversationMenu(c),
+                );
+              },
+            ),
+            if (_next != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextButton(
+                    onPressed: _fetching ? null : () => _load(more: true),
+                    child: const Text('Load more conversations'),
+                  ),
+                ),
+              ),
+          ],
+          SliverToBoxAdapter(child: SizedBox(height: 24 + bottomInset)),
+        ],
+      ),
+    );
+  }
+
+  Widget _settings(double bottomInset) {
+    final user = session.user!;
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
+      children: [
+        Center(child: PersonAvatar(user.name, size: 96, brand: true)),
+        const SizedBox(height: 14),
+        Text(
+          user.name,
+          textAlign: TextAlign.center,
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          user.email,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 12),
-        if (_error != null && _conversations.isNotEmpty)
-          MaterialBanner(
-            content: const Text(
-              'Could not refresh messages. Pull down to retry.',
+        const SizedBox(height: 10),
+        if (user.role.isNotEmpty)
+          Center(
+            child: Chip(
+              label: Text(user.role[0].toUpperCase() + user.role.substring(1)),
+              visualDensity: VisualDensity.compact,
             ),
-            actions: [
-              TextButton(onPressed: () => _load(), child: const Text('Retry')),
-            ],
           ),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null && _conversations.isEmpty
-              ? EmptyState(
-                  icon: Icons.wifi_off_rounded,
-                  title: 'Unable to load messages',
-                  message: _error.toString(),
-                  action: FilledButton(
-                    onPressed: () => _load(reset: true),
-                    child: const Text('Try again'),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => _load(reset: true),
-                  child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      if (conversations.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: EmptyState(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            title: query.isNotEmpty
-                                ? 'No matching conversations'
-                                : _filter == 'Unread'
-                                ? 'You’re all caught up'
-                                : _filter == 'Archived'
-                                ? 'No archived conversations'
-                                : 'Start a conversation',
-                            message: query.isNotEmpty
-                                ? 'Try a different name or load more conversations.'
-                                : 'Keep in touch with your school community.',
-                            action: _filter == 'All' && query.isEmpty
-                                ? FilledButton.icon(
-                                    onPressed: _compose,
-                                    icon: const Icon(Icons.edit_outlined),
-                                    label: const Text('New message'),
-                                  )
-                                : null,
-                          ),
-                        ),
-                      SliverList.builder(
-                        itemCount: conversations.length,
-                        itemBuilder: (context, index) {
-                          final c = conversations[index];
-                          return _ConversationRow(
-                            session: session,
-                            conversation: c,
-                            onTap: () => _open(c),
-                            onLongPress: () => _conversationMenu(c),
-                          );
-                        },
-                      ),
-                      if (_next != null)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: TextButton(
-                              onPressed: _fetching
-                                  ? null
-                                  : () => _load(more: true),
-                              child: const Text('Load more conversations'),
-                            ),
-                          ),
-                        ),
-                      SliverToBoxAdapter(
-                        child: SizedBox(height: 24 + bottomInset),
+        const SizedBox(height: 20),
+        _SettingsGroup(
+          title: 'Account',
+          children: [
+            _SettingsRow(
+              icon: Icons.apartment_rounded,
+              title: 'Department',
+              subtitle: user.department?.label ?? 'Not assigned in STEP',
+            ),
+            _SettingsRow(
+              icon: Icons.badge_rounded,
+              title: 'STEP roles',
+              subtitle: user.stepRoles.isEmpty
+                  ? 'No roles synchronized yet'
+                  : user.stepRoles.join(', '),
+            ),
+            if (session.stepAccountUrl != null)
+              _SettingsRow(
+                icon: Icons.manage_accounts_rounded,
+                title: 'Manage account in STEP',
+                subtitle:
+                    'Change your name, email, password, or role. Uhoo! refreshes them on your next sign-in.',
+                trailing: Icons.open_in_new_rounded,
+                onTap: () => openExternalLink(context, session.stepAccountUrl!),
+              ),
+            _SettingsRow(
+              icon: Icons.school_rounded,
+              title: 'School workspace',
+              subtitle: session.team?.name ?? 'No workspace',
+              onTap: _chooseTeam,
+            ),
+          ],
+        ),
+        _SettingsGroup(
+          title: 'Preferences',
+          children: [
+            _SettingsRow(
+              icon: Icons.bookmark_rounded,
+              title: 'Saved messages',
+              subtitle: 'Messages you saved to find later',
+              onTap: _openSaved,
+            ),
+            _SettingsRow(
+              icon: Icons.dark_mode_rounded,
+              title: 'Appearance',
+              subtitle: switch (session.themeMode) {
+                ThemeMode.system => 'Use device settings',
+                ThemeMode.light => 'Light',
+                ThemeMode.dark => 'Dark',
+              },
+              onTap: _chooseAppearance,
+            ),
+          ],
+        ),
+        _SettingsGroup(
+          title: 'Support',
+          children: [
+            _SettingsRow(
+              icon: Icons.help_rounded,
+              title: 'Help and support',
+              subtitle: 'Contact Uhoo! support',
+              trailing: Icons.open_in_new_rounded,
+              onTap: () => openSupportPage(context),
+            ),
+            // The version comes from the app bundle (pubspec.yaml's `version`).
+            FutureBuilder<PackageInfo>(
+              future: _packageInfo,
+              builder: (context, snapshot) {
+                final version = snapshot.data == null
+                    ? ''
+                    : '${snapshot.data!.version} (${snapshot.data!.buildNumber})';
+                return _SettingsRow(
+                  icon: Icons.info_rounded,
+                  title: 'About Uhoo!',
+                  subtitle: version.isEmpty ? 'Uhoo!' : 'Version $version',
+                  onTap: () => showAboutDialog(
+                    context: context,
+                    applicationName: 'Uhoo!',
+                    applicationVersion: version,
+                    applicationIcon: const Icon(Icons.school_rounded, size: 40),
+                    children: [
+                      const Text(
+                        'A place for your school community to stay connected.',
                       ),
                     ],
                   ),
-                ),
+                );
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () async {
+            if (!await confirmAction(
+              context,
+              'Sign out?',
+              'You can sign in again with your STEP account.',
+              'Sign out',
+            )) {
+              return;
+            }
+            try {
+              await session.signOut();
+            } catch (e) {
+              if (mounted) showError(context, e);
+            }
+          },
+          icon: const Icon(Icons.logout_rounded),
+          label: const Text('Sign out'),
         ),
       ],
     );
   }
 
-  Widget _settings(double bottomInset) => ListView(
-    padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
-    children: [
-      Center(child: PersonAvatar(session.user!.name, size: 84)),
-      const SizedBox(height: 16),
-      Text(
-        session.user!.name,
-        textAlign: TextAlign.center,
-        style: Theme.of(
-          context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
-      ),
-      const SizedBox(height: 6),
-      Text(session.user!.email, textAlign: TextAlign.center),
-      const SizedBox(height: 6),
-      Text(
-        session.user!.role.toUpperCase(),
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 11,
-          letterSpacing: 1.5,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-      const SizedBox(height: 32),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.apartment_outlined),
-        title: const Text('Department'),
-        subtitle: Text(
-          session.user!.department?.label ?? 'Not assigned in STEP',
-        ),
-      ),
-      const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.badge_outlined),
-        title: const Text('STEP roles'),
-        subtitle: Text(
-          session.user!.stepRoles.isEmpty
-              ? 'No roles synchronized yet'
-              : session.user!.stepRoles.join(', '),
-        ),
-      ),
-      if (session.stepAccountUrl != null) ...[
-        const Divider(),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.manage_accounts_outlined),
-          title: const Text('Manage account in STEP'),
-          subtitle: const Text(
-            'Change your name, email, password, or role. Uhoo! refreshes them on your next sign-in.',
-          ),
-          trailing: const Icon(Icons.open_in_new, size: 18),
-          onTap: () => openExternalLink(context, session.stepAccountUrl!),
-        ),
-      ],
-      const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.school_outlined),
-        title: const Text('School workspace'),
-        subtitle: Text(session.team?.name ?? 'No workspace'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: _chooseTeam,
-      ),
-      const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.bookmark_border),
-        title: const Text('Saved messages'),
-        subtitle: const Text('Messages you saved to find later'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: _openSaved,
-      ),
-      const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.contrast_rounded),
-        title: const Text('Appearance'),
-        subtitle: Text(session.themeMode.name),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          final mode = await showModalBottomSheet<ThemeMode>(
-            context: context,
-            showDragHandle: true,
-            builder: (context) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final mode in ThemeMode.values)
-                    ListTile(
-                      title: Text(
-                        mode == ThemeMode.system
-                            ? 'Use device settings'
-                            : mode == ThemeMode.light
-                            ? 'Light'
-                            : 'Dark',
-                      ),
-                      trailing: session.themeMode == mode
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () => Navigator.pop(context, mode),
-                    ),
-                ],
-              ),
-            ),
-          );
-          if (mode != null) await session.setTheme(mode);
-        },
-      ),
-      const Divider(),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.help_outline),
-        title: const Text('Help and support'),
-        subtitle: const Text('Contact Uhoo! support'),
-        trailing: const Icon(Icons.open_in_new),
-        onTap: () => openSupportPage(context),
-      ),
-      const Divider(),
-      // The version comes from the app bundle (pubspec.yaml's `version`).
-      FutureBuilder<PackageInfo>(
-        future: _packageInfo,
-        builder: (context, snapshot) {
-          final version = snapshot.data == null
-              ? ''
-              : '${snapshot.data!.version} (${snapshot.data!.buildNumber})';
-          return ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.info_outline),
-            title: const Text('About Uhoo!'),
-            subtitle: Text(version.isEmpty ? 'Uhoo!' : 'Version $version'),
-            onTap: () => showAboutDialog(
-              context: context,
-              applicationName: 'Uhoo!',
-              applicationVersion: version,
-              applicationIcon: const Icon(Icons.school_rounded, size: 40),
-              children: [
-                const Text(
-                  'A place for your school community to stay connected.',
+  Future<void> _chooseAppearance() async {
+    final mode = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final mode in ThemeMode.values)
+              ListTile(
+                title: Text(
+                  mode == ThemeMode.system
+                      ? 'Use device settings'
+                      : mode == ThemeMode.light
+                      ? 'Light'
+                      : 'Dark',
                 ),
-              ],
-            ),
-          );
-        },
+                trailing: session.themeMode == mode
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.pop(context, mode),
+              ),
+          ],
+        ),
       ),
-      const SizedBox(height: 24),
-      OutlinedButton.icon(
-        onPressed: () async {
-          if (!await confirmAction(
-            context,
-            'Sign out?',
-            'You can sign in again with your STEP account.',
-            'Sign out',
-          )) {
-            return;
-          }
-          try {
-            await session.signOut();
-          } catch (e) {
-            if (mounted) showError(context, e);
-          }
-        },
-        icon: const Icon(Icons.logout),
-        label: const Text('Sign out'),
-      ),
-    ],
-  );
+    );
+    if (mode != null) await session.setTheme(mode);
+  }
 
   Future<void> _chooseTeam() async {
     final selected = await showModalBottomSheet<Team>(
@@ -691,92 +733,87 @@ class _HomeScreenState extends State<HomeScreen> {
       1 => 'People',
       _ => 'Profile',
     };
+    // Messenger-style: one flat surface from header to tab bar.
+    final surface = colors.surfaceContainerLow;
     return Scaffold(
+      backgroundColor: surface,
       appBar: AppBar(
-        toolbarHeight: 76,
-        titleSpacing: 20,
-        backgroundColor: colors.surface,
+        toolbarHeight: 64,
+        titleSpacing: 16,
+        backgroundColor: surface,
         shape: const Border(),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            GestureDetector(
-              onTap: _chooseTeam,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      session.team!.name.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: .8,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 16,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
+            Tooltip(
+              message: 'Profile',
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => setState(() => _tab = 2),
+                child: PersonAvatar(session.user!.name, size: 36, brand: true),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              pageTitle,
-              // Web: font-heading text-2xl font-bold text-foreground.
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 24,
-                color: colors.onSurface,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    pageTitle,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _chooseTeam,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            session.team!.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
         actions: [
           if (_tab == 0 && _filter != 'Archived')
-            IconButton.filled(
+            _CircleAction(
               tooltip: 'New message',
+              icon: Icons.edit_square,
               onPressed: _compose,
-              // Explicit: the app bar's action icon colour would win otherwise.
-              style: IconButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                fixedSize: const Size(40, 40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-                ),
-              ),
-              icon: Icon(
-                Icons.edit_square,
-                size: 20,
-                color: Theme.of(context).colorScheme.onPrimary,
-              ),
             ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
         ],
       ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Material(
-              color: colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
-              child: switch (_tab) {
-                0 => _inbox(0),
-                1 => ContactsScreen(session: session, onOpen: _open),
-                _ => _settings(0),
-              },
-            ),
-          ),
+          child: switch (_tab) {
+            0 => _inbox(0),
+            1 => ContactsScreen(session: session, onOpen: _open),
+            _ => _settings(0),
+          },
         ),
       ),
       bottomNavigationBar: _HomeNavigationBar(
@@ -797,8 +834,161 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Native bottom navigation using the web app's card, border and selected
-/// brand-tint treatment.
+/// A titled card of settings rows, like Messenger's settings sections.
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Material(
+            color: colors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(StepShape.radiusLarge),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final IconData? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ListTile(
+      shape: const RoundedRectangleBorder(),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: colors.primary,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 20, color: colors.onPrimary),
+      ),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: onTap == null
+          ? null
+          : Icon(
+              trailing ?? Icons.chevron_right_rounded,
+              size: trailing == null ? 22 : 18,
+              color: colors.onSurfaceVariant,
+            ),
+      onTap: onTap,
+    );
+  }
+}
+
+/// The round, muted header button Messenger uses for "new message".
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: colors.surfaceContainerHigh,
+        foregroundColor: colors.onSurface,
+        fixedSize: const Size(40, 40),
+        shape: const CircleBorder(),
+      ),
+      icon: Icon(icon, size: 20, color: colors.onSurface),
+    );
+  }
+}
+
+/// A person in the "active now" row above the inbox.
+class _ActivePerson extends StatelessWidget {
+  const _ActivePerson({
+    required this.session,
+    required this.conversation,
+    required this.onTap,
+  });
+  final SessionController session;
+  final Conversation conversation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final firstName = conversation.name.trim().split(RegExp(r'[\s,]+')).first;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(StepShape.radiusLarge),
+      child: SizedBox(
+        width: 68,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            children: [
+              ConversationAvatar(
+                session: session,
+                conversation: conversation,
+                size: 56,
+                online: true,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                firstName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Messenger-style tab bar: icon over label, brand colour when selected.
 class _HomeNavigationBar extends StatelessWidget {
   const _HomeNavigationBar({
     required this.selectedIndex,
@@ -812,12 +1002,23 @@ class _HomeNavigationBar extends StatelessWidget {
 
   static const _destinations = [
     (
-      label: 'Messages',
+      label: 'Chat',
+      tooltip: 'Messages',
       icon: Icons.chat_bubble_outline_rounded,
       selectedIcon: Icons.chat_bubble_rounded,
     ),
-    (label: 'People', icon: Icons.people_outline, selectedIcon: Icons.people),
-    (label: 'Profile', icon: Icons.person_outline, selectedIcon: Icons.person),
+    (
+      label: 'People',
+      tooltip: 'People',
+      icon: Icons.people_outline,
+      selectedIcon: Icons.people,
+    ),
+    (
+      label: 'Profile',
+      tooltip: 'Profile',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+    ),
   ];
 
   @override
@@ -832,25 +1033,23 @@ class _HomeNavigationBar extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: SizedBox(
-              height: 60,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _destinations.length; i++)
-                      Expanded(
-                        child: _HomeNavigationItem(
-                          label: _destinations[i].label,
-                          icon: i == selectedIndex
-                              ? _destinations[i].selectedIcon
-                              : _destinations[i].icon,
-                          selected: i == selectedIndex,
-                          badge: i == 0 ? unread : 0,
-                          onTap: () => onDestinationSelected(i),
-                        ),
+              height: 58,
+              child: Row(
+                children: [
+                  for (var i = 0; i < _destinations.length; i++)
+                    Expanded(
+                      child: _HomeNavigationItem(
+                        label: _destinations[i].label,
+                        tooltip: _destinations[i].tooltip,
+                        icon: i == selectedIndex
+                            ? _destinations[i].selectedIcon
+                            : _destinations[i].icon,
+                        selected: i == selectedIndex,
+                        badge: i == 0 ? unread : 0,
+                        onTap: () => onDestinationSelected(i),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -863,6 +1062,7 @@ class _HomeNavigationBar extends StatelessWidget {
 class _HomeNavigationItem extends StatelessWidget {
   const _HomeNavigationItem({
     required this.label,
+    required this.tooltip,
     required this.icon,
     required this.selected,
     required this.badge,
@@ -870,6 +1070,7 @@ class _HomeNavigationItem extends StatelessWidget {
   });
 
   final String label;
+  final String tooltip;
   final IconData icon;
   final bool selected;
   final int badge;
@@ -881,34 +1082,34 @@ class _HomeNavigationItem extends StatelessWidget {
     final foreground = selected ? brandText(context) : colors.onSurfaceVariant;
 
     return Semantics(
-      label: label,
       selected: selected,
       button: true,
       child: Tooltip(
-        message: label,
-        child: Center(
-          child: Material(
-            color: selected ? colors.primaryContainer : Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-            ),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-              child: SizedBox(
-                width: 64,
-                height: 48,
-                child: Center(
-                  child: Badge(
-                    isLabelVisible: badge > 0,
-                    label: Text(badge > 99 ? '99+' : '$badge'),
-                    backgroundColor: colors.primary,
-                    textColor: colors.onPrimary,
-                    child: Icon(icon, color: foreground, size: 23),
-                  ),
+        message: tooltip,
+        excludeFromSemantics: true,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 36,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Badge(
+                isLabelVisible: badge > 0,
+                label: Text(badge > 99 ? '99+' : '$badge'),
+                backgroundColor: colors.error,
+                textColor: colors.onError,
+                child: Icon(icon, color: foreground, size: 25),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: foreground,
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -916,8 +1117,8 @@ class _HomeNavigationItem extends StatelessWidget {
   }
 }
 
-/// A conversation in the inbox, laid out like ConversationRow in the web
-/// app's features/messenger/components/conversation-list.tsx.
+/// A conversation in the inbox, Messenger-style: large avatar, bold name and
+/// preview while unread, and the time after the preview.
 class _ConversationRow extends StatelessWidget {
   const _ConversationRow({
     required this.session,
@@ -937,110 +1138,106 @@ class _ConversationRow extends StatelessWidget {
     final me = session.user!.id;
     final other = c.participants.where((p) => p.id != me).firstOrNull;
     final draft = session.drafts[c.id]?.trim() ?? '';
+    final unread = c.unread > 0;
     final preview = draft.isNotEmpty
         ? 'Draft: $draft'
         : '${c.latest?.sender?.id == me && c.latest?.unsent == false ? 'You: ' : ''}${c.latest?.preview ?? 'No messages yet'}';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(StepShape.radiusMedium),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ConversationAvatar(
-                  session: session,
-                  conversation: c,
-                  size: 44,
-                  online: !c.group && (other?.online ?? false),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final time = timeLabel(c.updated);
+    final previewStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+      color: unread ? colors.onSurface : colors.onSurfaceVariant,
+    );
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            ConversationAvatar(
+              session: session,
+              conversation: c,
+              size: 56,
+              online: !c.group && (other?.online ?? false),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              c.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: colors.onSurface,
-                              ),
-                            ),
-                          ),
-                          if (c.pinned)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Icon(
-                                Icons.push_pin_outlined,
-                                size: 14,
-                                color: brandText(context),
-                                semanticLabel: 'Pinned',
-                              ),
-                            ),
-                          if (c.muted)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Icon(
-                                Icons.notifications_off_outlined,
-                                size: 14,
-                                color: colors.onSurfaceVariant,
-                                semanticLabel: 'Muted',
-                              ),
-                            ),
-                          if (c.unread > 0) ...[
-                            const SizedBox(width: 8),
-                            _CountBadge(
-                              label: c.unread > 99 ? '99+' : '${c.unread}',
-                              semantics: '${c.unread} unread',
-                            ),
-                          ],
-                          if (c.unreadMentions > 0) ...[
-                            const SizedBox(width: 4),
-                            const _CountBadge(
-                              label: '@',
-                              semantics: 'Unread mention',
-                              muted: true,
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.onSurfaceVariant,
+                      Flexible(
+                        child: Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: draft.isNotEmpty
+                              ? previewStyle.copyWith(color: brandText(context))
+                              : previewStyle,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        conversationStatus(c, me, DateTime.now()),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
+                      if (time.isNotEmpty)
+                        Text(' · $time', style: previewStyle),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (c.pinned)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.push_pin_rounded,
+                      size: 14,
+                      color: colors.onSurfaceVariant,
+                      semanticLabel: 'Pinned',
+                    ),
+                  ),
+                if (c.muted)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.notifications_off_rounded,
+                      size: 14,
+                      color: colors.onSurfaceVariant,
+                      semanticLabel: 'Muted',
+                    ),
+                  ),
+                if (c.unreadMentions > 0) ...[
+                  const SizedBox(width: 6),
+                  const _CountBadge(
+                    label: '@',
+                    semantics: 'Unread mention',
+                    muted: true,
+                  ),
+                ],
+                if (unread) ...[
+                  const SizedBox(width: 6),
+                  _CountBadge(
+                    label: c.unread > 99 ? '99+' : '${c.unread}',
+                    semantics: '${c.unread} unread',
+                  ),
+                ],
               ],
             ),
-          ),
+          ],
         ),
       ),
     );

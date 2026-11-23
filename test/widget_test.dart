@@ -191,8 +191,9 @@ void main() {
         lessThan(150),
       );
       expect(
+        // After the 28px sender avatar column (12 + 28 + 8).
         tester.getTopLeft(find.byKey(const ValueKey('message-bubble-7'))).dx,
-        closeTo(16, 1),
+        closeTo(48, 1),
       );
       realtime.updates.add({
         'event': 'client-typing',
@@ -319,7 +320,8 @@ void main() {
     final session = TestSession(client);
     await tester.pumpWidget(UhooApp(session: session));
     await tester.pumpAndSettle();
-    expect(find.text('Chat'), findsOneWidget);
+    // Page title and the labelled tab both say "Chat".
+    expect(find.text('Chat'), findsNWidgets(2));
     expect(find.text('Chats'), findsNothing);
     expect(find.text('Messages'), findsNothing);
     expect(find.byTooltip('Messages'), findsOneWidget);
@@ -391,7 +393,7 @@ void main() {
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     expect(
       tester.getTopRight(find.byKey(const ValueKey('message-bubble-8'))).dx,
-      closeTo(logicalWidth - 16, 1),
+      closeTo(logicalWidth - 12, 1),
     );
     expect(find.text('Replying to Jane Teacher'), findsNothing);
     expect(tester.takeException(), isNull);

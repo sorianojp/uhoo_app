@@ -71,11 +71,14 @@ abstract final class StepShape {
   /// rounded-card: cards, sheets, dialogs.
   static const radiusLarge = 12.0;
 
-  /// rounded-2xl: message bubbles.
-  static const radiusBubble = 16.0;
+  /// Messenger-style message bubbles.
+  static const radiusBubble = 18.0;
 
-  /// rounded-md: the bubble corner next to its author.
-  static const radiusBubbleTail = 6.0;
+  /// The corner where consecutive bubbles from one author join.
+  static const radiusBubbleTail = 4.0;
+
+  /// Fully rounded: search fields, the composer and pill chips.
+  static const radiusPill = 999.0;
   static const gutter = 16.0;
 }
 
@@ -91,13 +94,21 @@ abstract final class StepShape {
       onSurface: StepPalette.brandForeground,
     );
   }
+  // In light mode the chat background is the card colour, so incoming
+  // bubbles take the muted tint (as Messenger's grey bubbles do). In dark mode
+  // the chat sits on the page background and bubbles keep the card colour.
   return (
-    surface: dark
-        ? StepPalette.messageIncomingDark
-        : StepPalette.messageIncoming,
+    surface: dark ? StepPalette.messageIncomingDark : StepPalette.muted,
     onSurface: dark ? StepPalette.foregroundDark : StepPalette.foreground,
   );
 }
+
+/// Behind the message list: white in light mode, the deep page navy in dark
+/// mode so both bubble colours stand out.
+Color chatBackground(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? StepPalette.backgroundDark
+    : StepPalette.card;
 
 /// Flat by design: surfaces are told apart by colour, not shadows or lines
 /// (the web app is styled the same way). Kept as a hook for widgets that
