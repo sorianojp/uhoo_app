@@ -466,6 +466,15 @@ void main() {
         (w) => w is TextField && w.decoration?.hintText == 'Type a message...',
       );
       expect(find.byTooltip('Record voice message'), findsOneWidget);
+      expect(find.byTooltip('Photos and videos'), findsOneWidget);
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Photos and videos'), findsOneWidget);
+      expect(find.text('Attach file'), findsOneWidget);
+      expect(find.text('Create poll'), findsOneWidget);
+      expect(find.text('Create event'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
       await tester.enterText(composer, 'Hi @ja');
       await tester.pump();
       expect(find.text('Everyone'), findsNothing);

@@ -492,10 +492,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pickFiles() async {
+  /// Picks attachments. [FileType.media] opens the system photo picker
+  /// (iOS Photos / Android Photo Picker), which needs no storage permission.
+  Future<void> _pickFiles({FileType type = FileType.any}) async {
     try {
-      final result = await FilePicker.pickFiles();
-      if (!mounted) return;
+      final result = await FilePicker.pickFiles(type: type);
+      if (!mounted || result.isEmpty) return;
       final sizes = await Future.wait(result.map((file) => file.length()));
       if (_files.length + result.length > 5 ||
           sizes.any((size) => size > 20 * 1024 * 1024)) {
@@ -840,14 +842,62 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return '${DateFormat.yMMMd().format(day)}, $time';
   }
 
+  /// The "+" sheet: everything that doesn't fit as a composer icon.
+  Future<void> _moreActions() async {
+    final colors = Theme.of(context).colorScheme;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        Widget item(String value, IconData icon, String label) => ListTile(
+          leading: CircleAvatar(
+            backgroundColor: colors.surfaceContainerHigh,
+            child: Icon(icon, color: brandText(context)),
+          ),
+          title: Text(label),
+          onTap: () => Navigator.pop(context, value),
+        );
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              item('media', Icons.photo_library_rounded, 'Photos and videos'),
+              item('file', Icons.attach_file_rounded, 'Attach file'),
+              item('poll', Icons.poll_rounded, 'Create poll'),
+              item('event', Icons.event_rounded, 'Create event'),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case 'media':
+        await _pickFiles(type: FileType.media);
+      case 'file':
+        await _pickFiles();
+      case 'poll':
+        await _interactive('polls');
+      case 'event':
+        await _interactive('events');
+    }
+  }
+
   /// Messenger's composer: quick actions on the left (folded away while
   /// typing), a pill text field, and Send on the right.
   Widget _composer(ColorScheme colors) {
     final brand = brandText(context);
     final hasText = _body.text.trim().isNotEmpty || _files.isNotEmpty;
     final canAct = !_sending && _editing == null;
+    // Messenger-style: "+" for more, then gallery and mic.
     final actions = <(String, IconData, VoidCallback)>[
-      ('Attach file', Icons.add_circle_rounded, _pickFiles),
+      ('More options', Icons.add_circle_rounded, _moreActions),
+      (
+        'Photos and videos',
+        Icons.photo_rounded,
+        () => _pickFiles(type: FileType.media),
+      ),
       (
         'Record voice message',
         Icons.mic_rounded,
@@ -856,8 +906,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           setState(() => _recordingVoice = true);
         },
       ),
-      ('Create poll', Icons.poll_rounded, () => _interactive('polls')),
-      ('Create event', Icons.event_rounded, () => _interactive('events')),
     ];
     Widget action((String, IconData, VoidCallback) a) => IconButton(
       tooltip: a.$1,
