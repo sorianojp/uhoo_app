@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'attachment_viewer.dart';
 import 'conversation_avatar.dart';
@@ -492,39 +493,77 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Picks attachments. [FileType.media] opens the system photo picker
-  /// (iOS Photos / Android Photo Picker), which needs no storage permission.
-  Future<void> _pickFiles({FileType type = FileType.any}) async {
+  final _imagePicker = ImagePicker();
+
+  /// Opens the native photo gallery directly (iOS Photos / Android Photo Picker),
+  /// requiring no photo-library or storage permissions.
+  Future<void> _pickGallery() async {
     try {
-      final result = await FilePicker.pickFiles(type: type);
-      if (!mounted || result.isEmpty) return;
-      final sizes = await Future.wait(result.map((file) => file.length()));
-      if (_files.length + result.length > 5 ||
-          sizes.any((size) => size > 20 * 1024 * 1024)) {
+      final remaining = 5 - _files.length;
+      if (remaining <= 0) {
         throw const ApiException(
           'Choose up to 5 files, each no larger than 20 MB.',
         );
       }
-      final temp = await getTemporaryDirectory();
-      final directory = await Directory(
-        '${temp.path}/step_messenger/uploads/${DateTime.now().microsecondsSinceEpoch}',
-      ).create(recursive: true);
-      final files = <_PendingFile>[..._files];
-      for (var index = 0; index < result.length; index++) {
-        final picked = result[index];
-        final safeName = picked.name.replaceAll(
-          RegExp(r'[^a-zA-Z0-9._-]'),
-          '_',
-        );
-        final file = File('${directory.path}/${index}_$safeName');
-        await file.writeAsBytes(await picked.readAsBytes());
-        files.add(_PendingFile(picked.name, file.path));
-      }
-      if (!mounted) return;
-      setState(() => _files = files);
+      final result = await _imagePicker.pickMultipleMedia(limit: remaining);
+      if (!mounted || result.isEmpty) return;
+      await _stagePickedFiles([
+        for (final media in result)
+          (name: media.name, length: media.length, readBytes: media.readAsBytes),
+      ]);
     } catch (e) {
       if (mounted) showError(context, e);
     }
+  }
+
+  /// Opens the document/file browser for any file type.
+  Future<void> _pickFiles() async {
+    try {
+      final result = await FilePicker.pickFiles();
+      if (!mounted || result.isEmpty) return;
+      await _stagePickedFiles([
+        for (final file in result)
+          (name: file.name, length: file.length, readBytes: file.readAsBytes),
+      ]);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
+  Future<void> _stagePickedFiles(
+    List<
+      ({
+        String name,
+        Future<int> Function() length,
+        Future<Uint8List> Function() readBytes,
+      })
+    >
+    result,
+  ) async {
+    final sizes = await Future.wait(result.map((file) => file.length()));
+    if (_files.length + result.length > 5 ||
+        sizes.any((size) => size > 20 * 1024 * 1024)) {
+      throw const ApiException(
+        'Choose up to 5 files, each no larger than 20 MB.',
+      );
+    }
+    final temp = await getTemporaryDirectory();
+    final directory = await Directory(
+      '${temp.path}/step_messenger/uploads/${DateTime.now().microsecondsSinceEpoch}',
+    ).create(recursive: true);
+    final files = <_PendingFile>[..._files];
+    for (var index = 0; index < result.length; index++) {
+      final picked = result[index];
+      final safeName = picked.name.replaceAll(
+        RegExp(r'[^a-zA-Z0-9._-]'),
+        '_',
+      );
+      final file = File('${directory.path}/${index}_$safeName');
+      await file.writeAsBytes(await picked.readBytes());
+      files.add(_PendingFile(picked.name, file.path));
+    }
+    if (!mounted) return;
+    setState(() => _files = files);
   }
 
   Future<void> _attachment(ChatMessage message, Json attachment) =>
@@ -874,7 +913,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     switch (choice) {
       case 'media':
-        await _pickFiles(type: FileType.media);
+        await _pickGallery();
       case 'file':
         await _pickFiles();
       case 'poll':
@@ -893,11 +932,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Messenger-style: "+" for more, then gallery and mic.
     final actions = <(String, IconData, VoidCallback)>[
       ('More options', Icons.add_circle_rounded, _moreActions),
-      (
-        'Photos and videos',
-        Icons.photo_rounded,
-        () => _pickFiles(type: FileType.media),
-      ),
+      ('Photos and videos', Icons.photo_rounded, _pickGallery),
       (
         'Record voice message',
         Icons.mic_rounded,
@@ -1319,27 +1354,86 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ColoredBox(
                   color: colors.surfaceContainerLow,
                   child: SizedBox(
-                    height: 54,
+                    height: _files.any((f) => f.isImage) ? 76 : 54,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       children: [
                         for (final file in _files)
                           Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: InputChip(
-                              label: SizedBox(
-                                width: 135,
-                                child: Text(
-                                  file.name,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              avatar: const Icon(Icons.attach_file, size: 16),
-                              onDeleted: _sending
-                                  ? null
-                                  : () => setState(() => _files.remove(file)),
-                            ),
+                            padding: const EdgeInsets.only(right: 8),
+                            child: file.isImage
+                                ? Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.file(
+                                          File(file.path),
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Container(
+                                            width: 60,
+                                            height: 60,
+                                            color: colors.surfaceContainerHigh,
+                                            child: Icon(
+                                              Icons.photo_rounded,
+                                              color: colors.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (!_sending)
+                                        Positioned(
+                                          top: -4,
+                                          right: -4,
+                                          child: GestureDetector(
+                                            onTap: () => setState(
+                                              () => _files.remove(file),
+                                            ),
+                                            child: Container(
+                                              width: 20,
+                                              height: 20,
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.72,
+                                                ),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.close_rounded,
+                                                size: 13,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  )
+                                : Center(
+                                    child: InputChip(
+                                      label: SizedBox(
+                                        width: 135,
+                                        child: Text(
+                                          file.name,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      avatar: const Icon(
+                                        Icons.attach_file,
+                                        size: 16,
+                                      ),
+                                      onDeleted: _sending
+                                          ? null
+                                          : () => setState(
+                                              () => _files.remove(file),
+                                            ),
+                                    ),
+                                  ),
                           ),
                       ],
                     ),
@@ -1424,6 +1518,17 @@ class _PendingFile {
   const _PendingFile(this.name, this.path);
   final String name;
   final String path;
+
+  bool get isImage {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif');
+  }
 }
 
 /// The pinned message strip under the chat header, as on the web.
